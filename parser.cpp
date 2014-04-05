@@ -4,6 +4,8 @@
 std::vector<Token> tokens;
 std::string output;
 
+SymbolTable* ST = new SymbolTable();
+
 int curr; //keeps track of current token
 
 int main(int argc, char* argv[])
@@ -33,8 +35,7 @@ int main(int argc, char* argv[])
 	//std::cout << "List of Tokens:\n";
     
     
-    SymbolTable* ST;
-    ST = new SymbolTable();
+   
     ST->insert("t","test","ttest");
     ST->print("t");
 }
