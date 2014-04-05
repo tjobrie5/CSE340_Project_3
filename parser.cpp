@@ -1,5 +1,6 @@
 // THINGS TO REMEMBER: once more rules are made, I may not need to increment a token for an error
 #include "Header.h"
+#include "symboltable.cpp"
 std::vector<Token> tokens;
 std::string output;
 
@@ -7,6 +8,7 @@ int curr; //keeps track of current token
 
 int main(int argc, char* argv[])
 {
+    /*
     curr = 0;
 	init(argc, argv);   //lexical analysis, fills vector with tokens
     
@@ -26,14 +28,15 @@ int main(int argc, char* argv[])
         fout << output;
         std::cout << output;
     }
+     */
+    
 	//std::cout << "List of Tokens:\n";
     
-    /*
-	for(int i =0; i < tokens.size(); ++i)
-	{
-		std::cout << tokens[i].type << " " << tokens[i].name << " " << tokens[i].line << std::endl;
-	}
-    */
+    
+    SymbolTable* ST;
+    ST = new SymbolTable();
+    ST->insert("t","test","ttest");
+    ST->print("t");
 }
 
 bool eol()

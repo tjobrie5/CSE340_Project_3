@@ -2,9 +2,10 @@
 // Using Parser from Mark Ahlemeier
 
 
-#include "Header.h"
-
-
+#include <string>
+#include <unordered_map>
+#include <vector>
+#include <iostream>
 using namespace std;
 
 
@@ -15,6 +16,10 @@ class SymbolTable {
     unordered_map<string, vector<string>> ST;
 
 public:
+    SymbolTable()
+    {
+        
+    }
 	void insert(string name, string type, string scope)
     {
         vector<string> v;
@@ -28,4 +33,13 @@ public:
         
         
     }
-} mytable;
+    
+    void print(string name)
+    {
+        vector<string> v;
+        v = ST[name];
+        cout << v[0];
+        cout << v[1];
+        
+    }
+};
