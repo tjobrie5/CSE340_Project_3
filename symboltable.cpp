@@ -1,7 +1,8 @@
 // Using Lexer from 
 // Using Parser from Mark Ahlemeier
 
-nclude "Header.h"
+
+#include "Header.h"
 
 
 using namespace std;
@@ -28,4 +29,3 @@ public:
         
     }
 } mytable;
-
