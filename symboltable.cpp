@@ -1,27 +1,31 @@
 // Using Lexer from 
 // Using Parser from Mark Ahlemeier
 
+nclude "Header.h"
 
-#include "Header.h"
-#include <vector>
-#include <string>
-#include <unordered_map>
 
 using namespace std;
 
 
 //Create Symbol Table class
-class SymbolTable() {
+class SymbolTable {
 
 	//Create a Hash Table for Symbol Table ST
-	typedef unordered_map<string, vector> ST;
+    unordered_map<string, vector<string>> ST;
 
 public:
-	//Insert, search and get functions
-	void insert(string, string, string);
-	bool search(string);
-	bool search(string, scope);
-	string getType(string);
-	srting getScope(string);
-
+	void insert(string name, string type, string scope)
+    {
+        vector<string> v;
+        v.push_back(type);
+        v.push_back(scope);
+        ST.insert({name,v});
+    }
+    
+    void search(string name)
+    {
+        
+        
+    }
 } mytable;
+
