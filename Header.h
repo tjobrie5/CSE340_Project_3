@@ -4,6 +4,8 @@
 #include<iostream>
 #include<vector>
 #include<algorithm>
+#include <string>
+#include <unordered_map>
 
 // function declarations:
 struct Token
