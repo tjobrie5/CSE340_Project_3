@@ -28,9 +28,13 @@ public:
         ST.insert({name,v});
     }
     
-    void search(string name)
+    bool search(string name)
     {
-        
+        unordered_map<string, vector<string>>::const_iterator found = ST.find(name);
+        if(found == ST.end())
+            return false;
+        else
+            return true;
         
     }
     

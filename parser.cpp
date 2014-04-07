@@ -34,10 +34,10 @@ int main(int argc, char* argv[])
     
 	//std::cout << "List of Tokens:\n";
     
-    
+    bool testt = false;
    
     ST->insert("t","test","ttest");
-    ST->print("t");
+    testt = ST->search("tr");
 }
 
 bool eol()
