@@ -1,49 +1,23 @@
-#include<fstream>
-#include<sstream>
-#include<string>
-#include<iostream>
-#include<vector>
-#include<algorithm>
-#include <string>
-#include <unordered_map>
+#ifndef HEADER_H
+#define HEADER_H
+using std::string;
 
-// function declarations:
-struct Token
-{
-	std::string type;
-	std::string name;
+class Token { //token class we will use to record attributes of each token
+public:
+	string name;
+	string word;
 	int line;
+	Token(string a = "", string b = "", int c = 0); 
 };
 
-void init(int argc, char* argv[]);
-void split_line(std::string line, int lineCount);
-bool isDelimiter(char alpha);
-bool isOperator(char alpha);
-bool isSeparator(char alpha);
-bool isKeyword(std::string word);
-Token lexer(std::string word, int lineCount);
-int calculateNextState(int state, char input);
-void program();
-void dvar_global();
-void dvar_local();
-void dmethod();
-void parameter();
-void line();
-void _if();
-void _while();
-void assign();
-void _return();
-void call_function();
-void exprlog();
-void opand();
-void exprel();
-void opno();
-void expr();
-void product();
-void sign();
-void term();
-void nextToken();
-bool eof();
-void backToken();
-bool eol();
-void eraseWhitespace();
+void split_lines(string line);
+bool isOperator(char c);
+bool isDelimiter(char c);
+bool isKeyword(string s); 
+string lexer(string word);
+int calculateNextState(int current_state, char letter);
+void growList();
+void printList(std::vector<Token> list1);
+std::vector<Token> getList();
+
+#endif

@@ -1,413 +1,504 @@
-//Abdulaziz Alwashmi's Lexer
-//NEW COMMENT
+#include <iostream>
+#include <cstdlib>
+#include <string>
+#include <unordered_map>
+#include <vector>
 #include "Header.h"
+//#include "token.h"
 
-extern std::vector<Token> tokens;
+using std::cout;
+using std::string;
 
-void init(int argc, char* argv[]){
-    //std::cout << "started\n";
-	// input file
-	std::ifstream fin(argv[1]);
+bool send_word = false;
+int tokenIndex = -1;
+int lineNum = 1;
 
-	// variable to store each line of the input:
-	std::string line;
-
-	int lineCount= 0;
-
-	// read the input line by line and parse:
-	while(std::getline(fin, line)){
-		lineCount++;
-		if(line.length() > 0){
-			split_line(line, lineCount);
-		}
-		//std::cout << "splitted a line\n";
-	}
-
-	//std::ofstream fout(argv[2]);
-	//fout << output;
-	 
-	//std::cout << "Doine!  the output is written\n";
-} //END MAIN
-
-/*
-signeture: void split_line(std::string)
-parameters: line (std::string), line to be parsed
-returns: void
-*/
-void split_line(std::string line, int lineCount){
-	Token token;
-	// variable to store the words in the line:
-	std::string word = "";
-	int c = 0;	// count of single qoutes
-	int cc = 0;	// count of double qoutes
-	//std::cout << line << std::endl;
-	
-	// loop the line character by character:
-	for(int i = 0 ; i <= line.length()-1 ; i++){
-		
-		// if a qoute is detected, separate and increment the corresponding count:
-		if(line[i] == '\'' && cc == 0){
-			
-			if(c == 0){
-				if(word.length() > 0){
-					tokens.push_back(lexer(word, lineCount));
-					
-					word = "";
-				}
-			}
-			
-			if(c == 1){
-				if(line[i-1] != '\\') c++; // if it is escaped, do not increment count.
-			}
-			else
-				c++;
-		}
-		
-		if(line[i] == '\"' && c == 0){
-			
-			if(cc == 0){
-				if(word.length() > 0){
-					tokens.push_back(lexer(word, lineCount));
-					
-					word = "";
-				}
-			}
-			
-			if(cc == 1){
-				if(line[i-1] != '\\') cc++;	// if it is escaped, do not increment count.
-			}
-			else
-				cc++;
-		}
-		
-		// if no qoutes are detected:
-		if(c == 0 && cc == 0){
-			// check is there is a separator:
-		 	if(isSeparator(line[i])){
-				//std::cout << word << std::endl;
-				// call lexer and append to output:
-				if(word.length() > 0){
-					tokens.push_back(lexer(word, lineCount));
-					
-				}
-
-				// check if the character is a delimeter:
-
-				if(isDelimiter(line[i])){
-					token.type = "DELIMITER";
-					token.name = line[i];
-					token.line = lineCount;
-					tokens.push_back(token);
-					
-				}
-				if(isOperator(line[i])){
-					token.type = "OPERATOR"; 
-					token.name = line[i];
-					token.line = lineCount;
-					tokens.push_back(token);
-					
-				}
-				word = "";
-			}
-			else{
-		
-				// add the char to the word:
-				word += line[i];
-			}
-		}
-		else{
-			// if only one qoute is detected:
-			if(c == 1 || cc == 1) word += line[i];
-			else{	// if the closing qoute is detected:
-				word += line[i];	// append it to the word
-				
-				tokens.push_back(lexer(word, lineCount));
-				
-				word = "";	// reset the word
-				
-				// reset the counters:
-				c = 0;
-				cc = 0;
-			}
-		}
-	}
-	if(word.length() > 0){
-			tokens.push_back(lexer(word, lineCount));
-			
-	}
+Token::Token(string a, string b, int c) {
+	name = a;
+	word = b;
+	line = c;
 }
 
-/*
-signeture: bool isDelimiter(char){
-parameters: alpha (char) character to be evaluated
-returns: true if the char is a delimiter.
-*/
-bool isDelimiter(char alpha){
+std::vector<Token> list(0); //empty list of tokens
 
-	if((alpha == ';') || (alpha == ',') || (alpha == ':') || (alpha == '\\') || (alpha == '(') || (alpha == ')') || (alpha == '{') || (alpha == '}') || (alpha == '[') || (alpha == ']') || (alpha == '?'))
+void split_lines(string line) {
+	string word = ""; //word that will be added onto before printing
+	size_t i = 0;
+	while(i <= line.length()) { //build strings first
+		send_word = false;
+		if(line[i] == '\"') { //detect first quotation marks
+			if(word != "") {
+				send_word = true;
+			}
+			if(send_word == false) { //only continue if word isn't being sent to lexer
+			word = word + line[i]; //start string
+			i++;
+			while(line[i] != '\"' && i < line.length()) { //while there is open quote, build string
+				word = word + line[i];
+				i++;
+			}
+			if(line[i] == '\"') {
+				word = word + line[i];
+				i++;
+				if(i < line.length() && line[i] == '\"' && word.length() < 4) {
+					word = word + line[i];
+					i++;
+				}
+				send_word = true;
+			}
+			else { //invalid string
+				//cout << "error\t" << word << '\n';
+				growList(); 
+				list[tokenIndex] = Token("error", word, lineNum);
+				word = ""; //reset word
+			}
+		}
+		}
+
+		if(line[i] == '\'') { //detect first quotation mark
+			if(word != "") {
+				send_word = true;
+			}
+			if(send_word == false) { //only continue if word isn't being sent to lexer
+			word = word + line[i];
+			i++;
+			while(line[i] != '\'' && i < line.length()) { //while there is open quote, build string
+				word = word + line[i];
+				i++;
+			}
+			
+			if(line[i] == '\'') {
+				word = word + line[i];
+				i++;
+				if(word.length() == 2)
+					send_word = true;
+				else if(i < line.length() && line[i] == '\'' && word.length() < 4) {
+					word = word + line[i];
+					i++;
+				}
+				send_word = true;
+			}
+			else { //invalid string
+				//cout << "error\t" << word << '\n';
+				growList(); 
+				list[tokenIndex] = Token("error", word, lineNum);
+				word = ""; //reset word
+			}
+		}
+		}
+																		  //line[i] == 0 checks if char is NULL
+		if(line[i] == '\t' || line[i] == ' ' || isDelimiter(line[i]) || isOperator(line[i]) || line[i] == 0 || send_word) { //check for delimiter or operator at end of line
+			if(word != "" && !isKeyword(word)) { //check if there is a string to print
+				growList(); //grow vector list by 1
+				list[tokenIndex] = Token(lexer(word), word, lineNum);
+			}
+			else if(isKeyword(word)) {//check for keyword
+				growList(); 
+				list[tokenIndex] = Token("keyword", word, lineNum);
+			}
+			if(isDelimiter(line[i])) {
+				word = string(1, line[i]); //cast char to string
+				growList(); 
+				list[tokenIndex] = Token("delimiter", word, lineNum);
+			}
+			else if (isOperator(line[i])) { //check for operator
+				word = string(1, line[i]); //cast char to string
+				growList(); 
+				list[tokenIndex] = Token("operator", word, lineNum);
+			}
+			word = ""; //reset word
+		}
+			else 
+				word = word + line[i];
+			if(send_word == false || isDelimiter(line[i]) || isOperator(line[i]))
+				i++;
+	}//end while
+	lineNum++; //increment line number
+}
+
+bool isOperator(char c) { //check for operator
+	if(c == '+' || c == '-' || c == '*' || c == '/' || c == '%' || c == '='  || c == '&' || 
+		c == '|' || c == '!' || c == '<' || c == '>') {
+			return true;
+	}
+	else
+		return false;
+}
+
+bool isDelimiter(char c) { //check for delimiter
+	if(c == ':'  || c == ';' || c == ',' || c == '(' || c == ')' || c == '{' || c == '}' ||  c == '[' || c == ']') {
+			return true;
+	}
+	return false;
+}
+
+bool isKeyword(string s) { //check if potential ID is a keyword
+	if(s == "read" || s == "print" || s == "if" || s == "else" || s == "while" || s == "void" || 
+		s == "int" || s == "char" || s == "string" || s == "float" || s == "boolean" ||
+		s == "true" ||s == "false" || s == "return" || s == "for" || s == "integer")
 		return true;
 	else
 		return false;
 }
 
-/*
-signeture: bool isOperator(char){
-parameters: alpha (char) character to be evaluated
-returns: true if the char is an operator.
-*/
-bool isOperator(char alpha){
-
-	if((alpha == '=') || (alpha == '+') || (alpha == '-') || (alpha == '*') || (alpha == '/') || (alpha == '%') || (alpha == '!') || (alpha == '<') || (alpha == '>') || (alpha == '|') || (alpha == '&') || (alpha == '~') || (alpha == '^')|| (alpha == '&'))
-		return true;
-	else
-		return false;
-}
-
-/*
-signeture: bool isSeparator(char){
-parameters: alpha (char) character to be evaluated
-returns: true if the char is a sparator(delimiter, operator, or space).
-*/
-bool isSeparator(char alpha){
-
-	if((isDelimiter(alpha)) || (isOperator(alpha)) || (alpha == ' ') || (alpha == '\t'))
-		return true;
-	else
-		return false;
-}
-
-/*
-signeture: bool isKeyword(std::string word){
-parameters: word (std::string) word to be evaluated
-returns: true if the string is a keyword(if, else, while, return, ...).
-*/
-bool isKeyword(std::string word){
-
-        if((word == "if") || (word == "else") || (word == "while") || (word == "return") || (word == "int") || (word == "float") || (word == "void") || (word == "char") || (word == "string") || (word == "boolean") || (word == "for")
-	  ||(word == "read") || (word == "print") )
-                return true;
-        else
-                return false;
-}
-
-Token lexer(std::string word, int lineCount){
-	Token token;
-	// if the word is a keyword, return keyword.
-	if(isKeyword(word)){
-		token.type = "KEYWORD";
-		token.name= word;
-		token.line = lineCount;
-		return token;
-	}
-
-	// begin DFA:
+string lexer(string word) { //this function takes a string and determines the token type
 	int state = 0;
-	
-	for(int i = 0 ; i < word.length() ; i++){
-		
+	if(word[0] == '\"' && word[word.length()-1] == '\"') //check for string
+		return "string";
+	for(size_t i = 0; i < word.length(); i++) {
 		state = calculateNextState(state, word[i]);
 	}
+
+	if(state == 1) //route state to proper type
+		return "integer";
 	
-	switch(state){
+	else if(state == 3)
+		return "float";
+
+	else if(state == 4)
+		return "identifier";
+
+	else if(state == 5)
+		return "integer";
+	
+	else if(state == 6)
+		return "octal";
+	
+	else if(state == 7)
+		return "hexadecimal";
+
+	else if(state == 11)
+		return "character";
+
+	else if(state == 13)
+		return "character";
+
+	else if(state == 15)
+		return "string";
+
+	else 
+		return "error";
+}
+
+
+int calculateNextState(int current_state, char key) {
+	int new_state = -1; //default state is reject
+	
+	std::unordered_map<char, int> hashtable0; //state 0 hashtable
+	hashtable0.emplace('\'', 8);
+
+	hashtable0.emplace('0', 5);
+	hashtable0.emplace('1', 1);
+	hashtable0.emplace('2', 1);
+	hashtable0.emplace('3', 1);
+	hashtable0.emplace('4', 1);
+	hashtable0.emplace('5', 1);
+	hashtable0.emplace('6', 1);
+	hashtable0.emplace('7', 1);
+	hashtable0.emplace('8', 1);
+	hashtable0.emplace('9', 1);
+
+	hashtable0.emplace('.', 2);
 		
-		case 1:
-			token.type = "INTEGER";
-			token.name = word;
-			token.line = lineCount;
-			return token;
-			
-			break;
-		case 2:
-			token.type = "OCTAL";
-			token.name = word;
-			token.line = lineCount;
-			return token;
+	hashtable0.emplace('$', 4);
+	hashtable0.emplace('_', 4);
+	hashtable0.emplace('a', 4);	hashtable0.emplace('A', 4);
+	hashtable0.emplace('b', 4);	hashtable0.emplace('B', 4);
+	hashtable0.emplace('c', 4);	hashtable0.emplace('C', 4);
+	hashtable0.emplace('d', 4);	hashtable0.emplace('D', 4);
+	hashtable0.emplace('e', 4);	hashtable0.emplace('E', 4);
+	hashtable0.emplace('f', 4);	hashtable0.emplace('F', 4);
+	hashtable0.emplace('g', 4);	hashtable0.emplace('G', 4);
+	hashtable0.emplace('h', 4);	hashtable0.emplace('H', 4);
+	hashtable0.emplace('i', 4);	hashtable0.emplace('I', 4);
+	hashtable0.emplace('j', 4);	hashtable0.emplace('J', 4);
+	hashtable0.emplace('k', 4);	hashtable0.emplace('K', 4);
+	hashtable0.emplace('l', 4);	hashtable0.emplace('L', 4);
+	hashtable0.emplace('m', 4);	hashtable0.emplace('M', 4);
+	hashtable0.emplace('n', 4);	hashtable0.emplace('N', 4);
+	hashtable0.emplace('o', 4);	hashtable0.emplace('O', 4);
+	hashtable0.emplace('p', 4);	hashtable0.emplace('P', 4);
+	hashtable0.emplace('q', 4);	hashtable0.emplace('Q', 4);
+	hashtable0.emplace('r', 4);	hashtable0.emplace('R', 4);
+	hashtable0.emplace('s', 4);	hashtable0.emplace('S', 4);
+	hashtable0.emplace('t', 4);	hashtable0.emplace('T', 4);
+	hashtable0.emplace('u', 4);	hashtable0.emplace('U', 4);
+	hashtable0.emplace('v', 4);	hashtable0.emplace('V', 4);
+	hashtable0.emplace('w', 4);	hashtable0.emplace('W', 4);
+	hashtable0.emplace('x', 4);	hashtable0.emplace('X', 4);
+	hashtable0.emplace('y', 4);	hashtable0.emplace('Y', 4);
+	hashtable0.emplace('z', 4); hashtable0.emplace('Z', 4);
+
+	std::unordered_map<char, int> hashtable1; //state 1 hashtable
+	hashtable1.emplace('0', 1);
+	hashtable1.emplace('1', 1);
+	hashtable1.emplace('2', 1);
+	hashtable1.emplace('3', 1);
+	hashtable1.emplace('4', 1);
+	hashtable1.emplace('5', 1);
+	hashtable1.emplace('6', 1);
+	hashtable1.emplace('7', 1);
+	hashtable1.emplace('8', 1);
+	hashtable1.emplace('9', 1);
+
+	hashtable1.emplace('.', 2);
+
+	std::unordered_map<char, int> hashtable2; //state 2 hashtable
+	hashtable2.emplace('0', 3);
+	hashtable2.emplace('1', 3);
+	hashtable2.emplace('2', 3);
+	hashtable2.emplace('3', 3);
+	hashtable2.emplace('4', 3);
+	hashtable2.emplace('5', 3);
+	hashtable2.emplace('6', 3);
+	hashtable2.emplace('7', 3);
+	hashtable2.emplace('8', 3);
+	hashtable2.emplace('9', 3);
+
+	std::unordered_map<char, int> hashtable3; //state 3 hashtable
+	hashtable3.emplace('0', 3);
+	hashtable3.emplace('1', 3);
+	hashtable3.emplace('2', 3);
+	hashtable3.emplace('3', 3);
+	hashtable3.emplace('4', 3);
+	hashtable3.emplace('5', 3);
+	hashtable3.emplace('6', 3);
+	hashtable3.emplace('7', 3);
+	hashtable3.emplace('8', 3);
+	hashtable3.emplace('9', 3);
+
+	std::unordered_map<char, int> hashtable4; //state 4 hashtable
+	hashtable4.emplace('$', 4);
+	hashtable4.emplace('_', 4);
 	
-			break;
-		case 4:
-			token.type = "HEXADECIMAL";
-			token.name = word;
-			token.line = lineCount;
-			return token;
-			
-			break;
-		case 5:
-			token.type = "FLOAT";
-			token.name = word;
-			token.line = lineCount;
-			return token;
-			
-			break;
-		case 6:
-			token.type = "INTEGER";
-			token.name = word;
-			token.line = lineCount;
-			return token;
-			
-			break;
-		case 10:
-			token.type = "STRING";
-			token.name = word;
-			token.line = lineCount;
-			return token;
-			
-			break;
-		case 13:
-			token.type = "CHAR";
-			token.name = word;
-			token.line = lineCount;
-			return token;
-			
-			break;
-		case 14:
-			token.type = "IDENTIFIER";
-			token.name = word;
-			token.line = lineCount;
-			return token;
-			
-			break;
-		default:
-			token.type = "UNDEFINED";
-			token.name = word;
-			token.line = lineCount;
-			return token;
-			
-			break;
+	hashtable4.emplace('0', 4);
+	hashtable4.emplace('1', 4);
+	hashtable4.emplace('2', 4);
+	hashtable4.emplace('3', 4);
+	hashtable4.emplace('4', 4);
+	hashtable4.emplace('5', 4);
+	hashtable4.emplace('6', 4);
+	hashtable4.emplace('7', 4);
+	hashtable4.emplace('8', 4);
+	hashtable4.emplace('9', 4);
+		
+	hashtable4.emplace('a', 4);	hashtable4.emplace('A', 4);
+	hashtable4.emplace('b', 4);	hashtable4.emplace('B', 4);
+	hashtable4.emplace('c', 4);	hashtable4.emplace('C', 4);
+	hashtable4.emplace('d', 4);	hashtable4.emplace('D', 4);
+	hashtable4.emplace('e', 4);	hashtable4.emplace('E', 4);
+	hashtable4.emplace('f', 4);	hashtable4.emplace('F', 4);
+	hashtable4.emplace('g', 4);	hashtable4.emplace('G', 4);
+	hashtable4.emplace('h', 4);	hashtable4.emplace('H', 4);
+	hashtable4.emplace('i', 4);	hashtable4.emplace('I', 4);
+	hashtable4.emplace('j', 4);	hashtable4.emplace('J', 4);
+	hashtable4.emplace('k', 4);	hashtable4.emplace('K', 4);
+	hashtable4.emplace('l', 4);	hashtable4.emplace('L', 4);
+	hashtable4.emplace('m', 4);	hashtable4.emplace('M', 4);
+	hashtable4.emplace('n', 4);	hashtable4.emplace('N', 4);
+	hashtable4.emplace('o', 4);	hashtable4.emplace('O', 4);
+	hashtable4.emplace('p', 4);	hashtable4.emplace('P', 4);
+	hashtable4.emplace('q', 4);	hashtable4.emplace('Q', 4);
+	hashtable4.emplace('r', 4);	hashtable4.emplace('R', 4);
+	hashtable4.emplace('s', 4);	hashtable4.emplace('S', 4);
+	hashtable4.emplace('t', 4);	hashtable4.emplace('T', 4);
+	hashtable4.emplace('u', 4);	hashtable4.emplace('U', 4);
+	hashtable4.emplace('v', 4);	hashtable4.emplace('V', 4);
+	hashtable4.emplace('w', 4);	hashtable4.emplace('W', 4);
+	hashtable4.emplace('x', 4);	hashtable4.emplace('X', 4);
+	hashtable4.emplace('y', 4);	hashtable4.emplace('Y', 4);
+	hashtable4.emplace('z', 4); hashtable4.emplace('Z', 4);
+
+	std::unordered_map<char, int> hashtable5; //state 5 hashtable
+	hashtable5.emplace('x', 7);
+
+	hashtable5.emplace('0', 6);
+	hashtable5.emplace('1', 6);
+	hashtable5.emplace('2', 6);
+	hashtable5.emplace('3', 6);
+	hashtable5.emplace('4', 6);
+	hashtable5.emplace('5', 6);
+	hashtable5.emplace('6', 6);
+	hashtable5.emplace('7', 6);
+
+	hashtable5.emplace('.', 2);
+
+	std::unordered_map<char, int> hashtable6; //state 6 hashtable
+	hashtable6.emplace('0', 6);
+	hashtable6.emplace('1', 6);
+	hashtable6.emplace('2', 6);
+	hashtable6.emplace('3', 6);
+	hashtable6.emplace('4', 6);
+	hashtable6.emplace('5', 6);
+	hashtable6.emplace('6', 6);
+	hashtable6.emplace('7', 6);
+
+	std::unordered_map<char, int> hashtable7; //state 7 hashtable
+	hashtable7.emplace('0', 7);
+	hashtable7.emplace('1', 7);
+	hashtable7.emplace('2', 7);
+	hashtable7.emplace('3', 7);
+	hashtable7.emplace('4', 7);
+	hashtable7.emplace('5', 7);
+	hashtable7.emplace('6', 7);
+	hashtable7.emplace('7', 7);
+	hashtable7.emplace('8', 7);
+	hashtable7.emplace('9', 7);
+
+	hashtable7.emplace('a', 7);	hashtable7.emplace('A', 7);	
+	hashtable7.emplace('b', 7); hashtable7.emplace('B', 7);	
+	hashtable7.emplace('c', 7); hashtable7.emplace('C', 7);	
+	hashtable7.emplace('d', 7); hashtable7.emplace('D', 7);	
+	hashtable7.emplace('e', 7); hashtable7.emplace('E', 7);	
+	hashtable7.emplace('f', 7); hashtable7.emplace('F', 7);	
+
+	std::unordered_map<char, int> hashtable8; //state 8 hashtable
+	if(key != '\\')
+		hashtable8.emplace(key, 9); //we know the key is a char, so this is valid
+	hashtable8.emplace('\\', 10);
+
+	std::unordered_map<char, int> hashtable9;	//state 9 hashtable
+	if(key != '\'') 
+		hashtable9.emplace(key, 18);
+	hashtable9.emplace('\'', 11);
+	
+
+	std::unordered_map<char, int> hashtable10;	//state 10 hashtable
+	hashtable10.emplace(key, 12);
+
+	std::unordered_map<char, int> hashtable11;	//state 11 hashtable
+
+	std::unordered_map<char, int> hashtable12;	//state 12 hashtable
+	hashtable12.emplace('\'', 13);
+
+	std::unordered_map<char, int> hashtable13;	//state 13 hashtable
+
+	std::unordered_map<char, int> hashtable18;
+	if(key != '\'')
+		hashtable18.emplace(key, 18);
+	if(key == '\'')
+		hashtable18.emplace(key, -1);
+
+	switch(current_state) {
+	case 0:
+		if(hashtable0.count(key) != 0) //check if key is in hashtable
+			new_state = hashtable0[key];
+		else
+			new_state = -1; //return reject state if not found
+		break;
+
+	case 1:
+		if(hashtable1.count(key) != 0) //check if key is in hashtable
+			new_state = hashtable1[key];
+		else
+			new_state = -1; //return reject state if not found
+		break;
+
+	case 2:
+		if(hashtable2.count(key) != 0) //check if key is in hashtable
+			new_state = hashtable2[key];
+		else
+			new_state = -1; //return reject state if not found
+		break;
+
+	case 3:
+		if(hashtable3.count(key) != 0) //check if key is in hashtable
+			new_state = hashtable3[key];
+		else
+			new_state = -1; //return reject state if not found
+		break;
+
+	case 4:
+		if(hashtable4.count(key) != 0) //check if key is in hashtable
+			new_state = hashtable4[key];
+		else
+			new_state = -1; //return reject state if not found
+		break;
+	
+	case 5:
+		if(hashtable5.count(key) != 0) //check if key is in hashtable
+			new_state = hashtable5[key];
+		else
+			new_state = -1; //return reject state if not found
+		break;
+
+	case 6:
+		if(hashtable6.count(key) != 0) //check if key is in hashtable
+			new_state = hashtable6[key];
+		else
+			new_state = -1; //return reject state if not found
+		break;
+	
+	case 7:
+		if(hashtable7.count(key) != 0) //check if key is in hashtable
+			new_state = hashtable7[key];
+		else
+			new_state = -1; //return reject state if not found
+		break;
+
+	case 8:
+		if(hashtable8.count(key) != 0) //check if key is in hashtable
+			new_state = hashtable8[key];
+		else
+			new_state = -1; //return reject state if not found
+		break;
+
+	case 9:
+		if(hashtable9.count(key) != 0) //check if key is in hashtable
+			new_state = hashtable9[key];
+		else
+			new_state = -1; //return reject state if not found
+		break;
+
+	case 10:
+		if(hashtable10.count(key) != 0) //check if key is in hashtable
+			new_state = hashtable10[key];
+		else
+			new_state = -1; //return reject state if not found
+		break;
+
+	case 11:
+		if(hashtable11.count(key) != 0) //check if key is in hashtable
+			new_state = hashtable11[key];
+		else
+			new_state = -1; //return reject state if not found
+		break;
+
+	case 12:
+		if(hashtable12.count(key) != 0) //check if key is in hashtable
+			new_state = hashtable12[key];
+		else
+			new_state = -1; //return reject state if not found
+		break;
+
+	case 13:
+		if(hashtable13.count(key) != 0) //check if key is in hashtable
+			new_state = hashtable13[key];
+		else
+			new_state = -1; //return reject state if not found
+		break;
+	}
+
+	return new_state; 
+}
+
+void growList() {
+	list.resize(list.size() + 1);
+	tokenIndex++;
+}
+
+void printList(std::vector<Token> list1) {
+	if(tokenIndex == 0)
+		cout << "Error: no tokens in list";
+	else {
+		for(int i = 1; i <= tokenIndex; i++) {
+			cout << list1[i].name << ' ';
+			cout << list1[i].word << ' ';
+			cout << list1[i].line << '\n';
+		}
 	}
 }
 
-int calculateNextState(int state, char input){
-	
-		switch(state){
-		
-		case 0:
-			if(input == '0') return 1;
-			else if(input >= '1' && input <= '9') return 6;
-			else if(input == '\"') return 8;
-			else if(input == '\'') return 11;
-			else if(input == '$' || input == '_' || (input >= 'a' && input <= 'z') || (input >= 'A' && input <= 'Z')) return 14;
-			else return -1;
-			break;
-		case 1:
-			if(input >= '0' && input <= '7') return 2;
-			else if(input == 'x' || input == 'X') return 3;
-			else if(input == '.') return 7;
-			else return -1;
-			break;
-		case 2:
-			if(input >= '0' && input <= '7') return 2;
-			else return -1;
-			break;
-		case 3:
-			if((input >= '0' && input <= '9') || (input >= 'a' && input <= 'f') || (input >= 'A' && input <= 'F')) return 4;
-			else return -1;
-			break;
-		case 4:
-			if((input >= '0' && input <= '9') || (input >= 'a' && input <= 'f') || (input >= 'A' && input <= 'F')) return 4;
-			else return -1;
-			break;
-		case 5:
-			if(input >= '0' && input <= '9') return 5;
-			else return -1;
-			break;
-		case 6:
-			if(input >= '0' && input <= '9') return 6;
-			else if(input == '.') return 7;
-			else return -1;
-			break;
-		case 7:
-			if(input >= '0' && input <= '9') return 5;
-			else return -1;
-			break;
-		case 8:
-			if(input == '\\') return 16;
-			else if(input == '\"') return 10;
-			else return 9;
-			break;
-		case 9:
-			if(input == '\"') return 10;
-			else if(input == '\\') return 16;
-			else return 9;
-			break;
-		case 10:
-			return -1;
-			break;
-		case 11:
-			if(input == '\\') return 15;
-			else return 12;
-			break;
-		case 12:
-			if(input == '\'') return 13;
-			else return -1;
-			break;
-		case 13:
-			return -1;
-			break;
-		case 14:
-			if(input == '$' || input == '_' || (input >= 'a' && input <= 'z') || (input >= 'A' && input <= 'Z') || (input >= '0' && input <= '9')) return 14;
-			else -1;
-			break;
-		case 15:
-			return 12;
-			break;
-		case 16:
-			return 9;
-			break;
-		default:
-			return -1;
-			break;
-		}
-    return -1;
+std::vector<Token> getList() {
+	return list;
 }
-
-////tests////
-/*
-		// check for single qoutes:
-		if(line[i] = '\''){
-			if(c == 0){
-				if(word.length() > 0){
-					output += lexer(word);
-					output += "\n";
-				}
-				c++;
-				word = line[i];	//word = '
-			}
-			if(c == 1){
-				word += line[i];
-				if(word.length() > 0){
-					output += lexer(word);
-					output += "\n";
-				}
-				c = 0;
-				word = "";
-			}
-		}
-		
-		// check for double qoutes:
-		else if(line[i] = '\"'){
-			if(cc == 0){
-				if(word.length() > 0){
-					output += lexer(word);
-					output += "\n";
-				}
-				cc++;
-				word = line[i];	//word = '
-			}
-			if(cc == 1){
-				word += line[i];
-				if(word.length() > 0){
-					output += lexer(word);
-					output += "\n";
-				}
-				cc = 0;
-				word = "";
-			}
-		}
-		
-		// if a qoute is open, keep appending:
-		if(c == 1 || cc == 1){
-			word += line[i];
-		}
-		
-		// otherwise, check if the character is a separator:
-		else*/

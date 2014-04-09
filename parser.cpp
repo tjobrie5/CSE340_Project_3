@@ -1,829 +1,882 @@
-// THINGS TO REMEMBER: once more rules are made, I may not need to increment a token for an error
+/* 
+John Lillyblad
+CSE 340
+Assignment 2
+2/22/2014
+
+This program will take an input file as argv[1] and generate an output file argv[2] that is the 
+parsed interpretation of the lexical analysis of the input. */
+
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
 #include "Header.h"
-#include "symboltable.cpp"
-std::vector<Token> tokens;
-std::string output;
+using std::cout;
+using std::string;
+using std::vector;
 
-SymbolTable* ST = new SymbolTable();
+unsigned int index;
+vector<Token> myTokens(1); //empty list of tokens
 
-int curr; //keeps track of current token
-
-int main(int argc, char* argv[])
-{
-    /*
-    curr = 0;
-	init(argc, argv);   //lexical analysis, fills vector with tokens
-    
-    output = "";
-    
-    program();
-    std::ofstream fout(argv[2]);
-    if(output == "")
-    {
-        std::cout << "Build successful\n";
-        output = "Build successful";
-        fout << output;
-    }
-    
-    else
-    {
-        fout << output;
-        std::cout << output;
-    }
-     */
-    
-	//std::cout << "List of Tokens:\n";
-    
-    bool testt = false;
-   
-    
-    ST->insert("t", "value", "scope");
-    ST->insert("t", "1","2");
-    
-    testt=ST->search("t","value");
-    
-    
-    std::cout<<testt;
+Token nextToken() { 
+	Token next;
+	if(index < myTokens.size() - 1) {
+		next = myTokens[index + 1];
+	}
+	else {
+		next = myTokens[index];
+	}
+	return next;
 }
 
-bool eol()
-{
-    if(tokens[curr].line != tokens[curr+1].line)
-        return true;
-    else
-        return false;
-}
-void backToken()
-{
-    if(curr != 0)
-        curr--;
-}
-void nextToken()
-{
-    if(curr != tokens.size()-1)
-        curr++;
+Token currentToken() {
+	if(index >= 0)
+		return myTokens[index];
+	else
+		return myTokens[0];
 }
 
-bool eof()
-{
-    if (curr == tokens.size()-1)
-        return true;
-    else
-        return false;
+Token endToken() {
+	return myTokens[myTokens.size()-1];
 }
 
+bool increment();
+bool isType(string s); //helper functions
+bool isLast();
+bool errorHandling(int temp);
 
-//Rules remember to take out eol should not be needed once all rules implemented
-//---------------------------------
-void term()
-{
-    if (tokens[curr].type == "CHAR")
-    {
-            nextToken();
-    }
-    else if(tokens[curr].type == "INTEGER")
-    {
-         
+bool Program();
+bool dvar_global();
+bool dvar_local();
+bool dmethod();
+bool parameter();
+bool line();
+bool if_function();
+bool while_function();
+bool assign();
+bool call_function();
+bool return_function();
+bool exprlog();
+bool opand();
+bool opno();
+bool exprel();
+bool expr();
+bool product();
+bool sign();
+bool term();
 
-            nextToken();
-         
 
-    }
-    else if(tokens[curr].type == "FLOAT")
-    {
-            nextToken();
-    }
-    else if(tokens[curr].type == "IDENTIFIER")
-    {
-            nextToken();
-        if(tokens[curr].name == "(")
-        {
-            backToken();
-            call_function();
-        }
-    }
-    //Could causer errors, possible implemented wrong might need to check for eol before incrementing after last ")"
-    else if(tokens[curr].name == "(")
-    {
-        nextToken();
-        exprlog();
-        
-        if(tokens[curr].name == ")")
-            nextToken();
-        else
-        {
-            output += "Line ";
-            output += std::to_string(tokens[curr].line);
-            output += ": expected ')' ";
-            nextToken();
-
-        }
-        
-    }
-    
-    else if (tokens[curr].name == "true")
-            nextToken();
-    
-    else if(tokens[curr].name == "false")
-            nextToken();
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": not valid term\n";
-        nextToken();
-    }
-    
+void startFile(const char* filename) {
+	freopen(filename, "w", stdout); //initialize file (destroy existing, if applicable)
 }
 
-void sign()
-{
-    if (tokens[curr].name == "-")
-    {
-        nextToken();
-        term();
-    }
-    
-    else
-        term();
+int main(int argc, char* argv[]) {
+	index = 0; //index that will be used to iterate through vector of tokens
+	const char* filename = argv[2];
+	string line;
+	std::ifstream fin;		//input stream
+	fin.open(argv[1]);		//open input text file for input operations
+	startFile(filename);	//open output stream, redirect standart output to file. COMMENT THIS LINE OUT TO SEND EVERYTHING TO SCREEN FOR DEBUGGING.
+
+	if(fin.is_open()) {
+		while(getline(fin, line)) {
+			split_lines(line);
+		}
+		myTokens = getList();
+		/*for(size_t i = 0; i < myTokens.size(); i++) {
+			cout << "Index " << i << "\t\tline:" << myTokens[i].line << '\n';
+			cout << "Index " << i << "\t\tname:" << myTokens[i].name << '\n';
+			cout << "Index " << i << "\t\tword:" << myTokens[i].word << '\n';
+			cout << '\n';
+		}*/
+	}
+	//printList(myTokens); //uncomment to print tokens from lexer
+
+	if(Program() && index == myTokens.size() - 1) {
+		//freopen("CON","w",stdout); //uncomment for Windows IDE (Visual Studio)
+		freopen ("/dev/tty", "a", stdout); //uncomment for g++ 
+		cout << "Build successful" << '\n';
+	}
+	fin.close();
+	fclose(stdout);
+	return 0;
 }
 
-void product()
-{
-    sign();
-    while ((tokens[curr].name == "/" || tokens[curr].name == "*" || tokens[curr].name == "%") && !eof())
-    {
-        nextToken();
-        sign();
-    }
+bool increment() {//if cannot increment when we should be able to, report fault
+	bool success = false;
+	if(index < myTokens.size() - 1) { //only increment if there is another valid token	
+		index++; 
+		success = true;
+	}
+	else if(currentToken().line == endToken().line) {
+		success = false;
+	}
+	return success;
 }
 
-// use for testing unlikely any errors
-void expr()
-{
-    product();
-    while((tokens[curr].name == "+" || tokens[curr].name == "-") && !eof())
-    {
-        nextToken();
-        product();
-    }
+bool isType(string s) { //evaluates word of a token
+	if(s == "int" || s == "char" || s == "string" || s == "float" || s == "boolean" || s == "integer"
+		|| s == "void")
+		return true;
+	else
+		return false;
 }
 
-void exprel()
-{
-    expr();
-     while((tokens[curr].name == ">" || tokens[curr].name == "<") && curr!= tokens.size()-1) // incase eof() gives problems use: curr!= tokens.size()-1
-     {
-         nextToken();
-         expr();
-     }
+bool isLast() { //determines if token is the last token
+	bool isLast = false;
+	if(index == myTokens.size() - 1) {
+		isLast = true;
+	}
+	return isLast;
 }
 
-void opno()
-{
-    if (tokens[curr].name == "!")
-    {
-        nextToken();
-        exprel();
-    }
-    
-    else
-        exprel();
+bool errorHandling(int temp) {
+	bool success = true;
+	while(nextToken().word != ";" && nextToken().line == temp && !isLast()) {
+		if(increment() == false) {
+			success = false;
+		}
+	}
+	if(nextToken().word == ";") {
+		if(increment() == false) {//if there is no next token, consume ";"
+			success = false;
+		}
+		else {
+			while(nextToken().line == temp) {
+				if(increment() == false) {
+					success = false;
+				}
+			}
+		}
+	}
+	if(currentToken().word == "{" && nextToken().word == "}") {//skip past curly braces
+		increment();
+	}
+	return success;
 }
 
-void opand()
-{
-    opno();
-    while(tokens[curr].name == "&" && !eof())
-    {
-        nextToken();
-        opno();
-    }
-}
-//use for testing --- minimal test performed if errors later on could be root but not likely
-void exprlog()
-{
-    opand();
-    while(tokens[curr].name == "|" && !eof())
-    {
-        nextToken();
-        opand();
-    }
-}
-
-//use for testing ---- Tested unlikely of any errors
-void call_function()
-{
-    if(tokens[curr].type == "IDENTIFIER" || tokens[curr].name == "print" || tokens[curr].name == "read")
-    {
-        nextToken();
-          
-    }
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected identifier\n";
-        nextToken();
-    }
-    
-    if(tokens[curr].name == "(")
-        nextToken();
-    
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected open parenthesis\n";
-        nextToken();
-    }
-    
-    if(tokens[curr].name != ")")
-    {
-        do
-        {
-            if(tokens[curr].name != ",")
-            {
-                
-                exprlog();
-                  
-            }
-            else
-                nextToken();
-        }
-        while (tokens[curr].name != ")" && !eof());
-        
-        if(tokens[curr].name != ")")
-        {
-            output += "Line ";
-            output += std::to_string(tokens[curr].line);
-            output += ": expected close parenthesis\n";
-            nextToken();
-        }
-        
-        else
-        {
-            nextToken();
-        }
-    }
-    else
-        nextToken();
-    
-    if(tokens[curr].name == ";")
-    {
-        nextToken();
-        
-    }
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected semi colon\n";
-        nextToken();
-    }
+bool Program() {
+	bool success = true;
+	bool error = false;
+	int temp = 0; //used for error recovery
+	if(myTokens.size() == 0)
+		return true;
+	do {	
+		temp = currentToken().line;
+		if(index == 0) { //check for the first type of the program		
+			if(isType(currentToken().word)) {}//do nothing
+			else
+				cout << "Line " << currentToken().line << ":" << "\texpected type" << '\n';
+		}
+		else if(isType(nextToken().word)) {
+			increment();
+		}
+		else {
+			//cout << "Line " << nextToken().line << ":" << "\texpected type" << '\n';
+			error = true; 
+			if(nextToken().line == endToken().line) {
+				increment(); //consume final token, ending program
+			}
+		}
+		if(nextToken().name == "identifier" && !error) {
+			increment();
+		}
+		else if(nextToken().line != temp && !error) { //if next token is on next line
+			cout << "Line " << currentToken().line << ":" << "\texpected identifier" << '\n';	
+			temp = currentToken().line;
+			error = true;
+		}
+		else if(!error) {
+			cout << "Line " << currentToken().line << ":" << "\texpected identifier" << '\n';	
+			error = true;
+		}
+		if(nextToken().name == "delimiter" && nextToken().word != ";"  && nextToken().word != "," 
+			&& !error) {
+			success = dmethod();
+		}
+		else if(!error) {
+			dvar_global();
+		}
+		if(error) {
+			if(endToken().line == 1) { //check if error is on first line
+				increment();
+			}
+			else {
+				if(errorHandling(temp)) {	//this will increment to first token of next line
+					//do nothing			//errorHandling returns false if already on first token of next line
+				}
+			}
+		}
+		error = false; //reset error
+	} while(index < myTokens.size() - 1);
+	if(isType(currentToken().word) && currentToken().line > 1) {
+		cout << "Line " << currentToken().line << ":" << "\texpected identifier" << '\n';
+	}
+	else if(currentToken().name == "identifier" && currentToken().line > 1) {
+		cout << "Line " << currentToken().line << ":" << "\texpected type" << '\n';
+	}
+	return success;
 }
 
-void _return()
-{
-    if(tokens[curr].name == "return")
-    {
-        nextToken();
-    }
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": missing return\n";
-        nextToken();
-    }
-    
-    if(tokens[curr].name != ";")
-    {
-        exprlog();
-        if(tokens[curr].name == ";")
-            nextToken();
-        else
-        {
-            output += "Line ";
-            output += std::to_string(tokens[curr].line);
-            output += ": missing semicolon\n";
-            nextToken();
-        }
-    }
-    else
-        nextToken();
+bool dvar_global() { //after reading a type and id
+	bool success = true;
+	bool error = false;
+	int temp = 0; //used for error recovery
+
+	while(nextToken().word == "," && !error) {
+		increment();
+		if(nextToken().name == "identifier") {
+			increment();
+		}
+		else {
+			temp = currentToken().line;
+			cout << "Line " << currentToken().line << ":\t" << "expected identifier" << '\n';	
+			error = true;
+		}
+	}
+	if(nextToken().name == "identifier" && !error && !isLast()) {
+		temp = currentToken().line;
+		cout << "Line " << currentToken().line << ":\t" << "expected delimiter ," << '\n';	
+		error = true;
+	}
+	else if(nextToken().word == ";" && !error) {
+		//do nothing
+	}
+	else if((nextToken().word != ";" || isLast()) && !error) {
+		if(isLast()) {
+			cout << "Line " << currentToken().line << ":\t" << "expected delimiter ;" << '\n';
+			error = true;
+		}
+		else if(!error) {
+			temp = currentToken().line;
+			cout << "Line " << currentToken().line << ":\t" << "expected delimiter ;" << '\n';
+			error = true;
+		}
+	}
+	if(error) {
+		errorHandling(temp);
+	}
+	if(!error)
+		increment();
+	return success;
 }
 
-void assign()
-{
-    if(tokens[curr].type == "IDENTIFIER")
-        nextToken();
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected Identifier\n";
-        nextToken();
-    }
-    
-    if(tokens[curr].name == "=")
-    {
-        nextToken();
-    }
-    
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected = \n";
-        nextToken();
-    }
-    
-    exprlog();
-    
-    if(tokens[curr].name == ";")
-        nextToken();
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": missing semicolon\n";
-        nextToken();
-    }
-    
+bool dmethod() { //after reading a type and id
+	bool success = true;
+	bool error = false;
+	int temp = 0; //used for error recovery
+	if(nextToken().word == "(") {
+		increment();
+		if(nextToken().word == ")") {
+			increment(); 
+		}
+		else if(isType(nextToken().word)) {
+			parameter();
+			if(nextToken().word == ")") {
+				increment();
+			}				
+			else {
+				cout << "Line " << currentToken().line << ":\t" << "expected delimiter )" << '\n';
+				temp = currentToken().line;
+				error = true;
+			}
+		}
+		else if(nextToken().name == "identifier") {
+			cout << "Line " << currentToken().line << ":\t" << "expected type" << '\n';
+			temp = currentToken().line;
+			error = true;
+		}
+		else if (!error) {
+			cout << "Line " << currentToken().line << ":\t" << "expected delimiter )" << '\n';
+			temp = currentToken().line;
+			error = true;
+		}
+		if(nextToken().word == "{"  && !error) {
+			increment();
+		}
+		else if(!error) {
+			cout << "Line " << currentToken().line << ":\t" << "expected delimiter {" << '\n';
+			increment();
+			error = true;
+		}
+		if(nextToken().word == "}" && !error) {
+			//do nothing
+		}
+		else if(!error) {
+			do {
+				success = line();
+			} while(nextToken().word != "}" && !isLast());
+			if(nextToken().word == "}" && !error) {
+				//do nothing //increment();
+			}
+			else if(!error) {
+				cout << "Line " << currentToken().line << ":\t" << "expected delimiter }" << '\n';
+				temp = currentToken().line;
+				error = true;
+			}
+		}
+	}
+	else if(!error) {
+		cout << "Line " << currentToken().line << ":\t" << "expected delimiter (" << '\n';
+		temp = currentToken().line;
+		error = true;
+	}
+	if(error) {
+		errorHandling(temp);
+	}
+	else if(!error) {
+		increment();
+	}
+	return success;
 }
 
-void _while()
-{
-    
-    
-    if(tokens[curr].name == "while")
-    {
-        nextToken();
-         
-    }
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected while\n";
-        nextToken();
-    }
-    
-    if(tokens[curr].name == "(")
-    {
-        nextToken();
-         
-    }
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected open parenthesis\n";
-        nextToken();
-    }
-    
-    exprlog();
-    
-    if(tokens[curr].name == ")")
-        nextToken();
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected closed parenthesis\n";
-        nextToken();
-    }
-    
-    if(tokens[curr].name != "{")
-        line();
-    else
-    {
-        nextToken();
-        if(tokens[curr].name != "}")
-        {
-            do
-            {
-                line();
-            }
-            while (tokens[curr].name != "}" && !eof());
-            
-            if(tokens[curr].name != "}")
-            {
-                output += "Line ";
-                output += std::to_string(tokens[curr].line);
-                output += ": expected closed curly bracket\n";
-                nextToken();
-            }
-            else
-                nextToken();
-        }
-    }
-    
+bool parameter() {
+	bool success = true;
+	bool error = false;
+	int temp = 0;	
+	do {
+		/*if(isType(currentToken().word)) {
+			increment();
+		}*/
+		if(isType(nextToken().word)) {
+			increment();
+		}
+		else { 
+			cout << "Line " << currentToken().line << ":" << "\texpected type" << '\n';
+			temp = currentToken().line;
+			error = true;
+		}
+		if(nextToken().name == "identifier" && !error) {
+			increment();
+		}
+		else if(!error) {
+			cout << "Line " << currentToken().line << ":" << "\texpected identifier" << '\n';
+			temp = currentToken().line;
+			error = true;
+		}
+		if((nextToken().word == "," || nextToken().word == ")") && !error) {
+			if(nextToken().word == ",") {
+				increment();
+			}
+		}
+		else if(!error) {
+			cout << "Line " << currentToken().line << ":\t" << "expected delimiter ," << '\n';
+			temp = currentToken().line;
+			error = true;
+		}
+	} while(isType(nextToken().word) && !error);
+	if(nextToken().name == "identifier" && !error) {
+		cout << "Line " << currentToken().line << ":" << "\texpected type" << '\n';
+		temp = currentToken().line;
+		error = true;
+	}
+	if(error) {
+		while(nextToken().line == temp && nextToken().word != ")") {
+			if(increment() == false) {
+				success = true;
+				break;
+			}
+		}
+	}
+	//increment();
+	return success;
 }
 
-void _if()
-{
-   if(tokens[curr].name == "if")
-    {
-        nextToken();
-    }
-    
-    if(tokens[curr].name == "(")
-        nextToken();
-    
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected '('\n";
-        nextToken();
-    }
-    
-    exprlog();
-
-    if(tokens[curr].name == ")")
-        nextToken();
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected ')'\n";
-        nextToken();
-    }
-    
-    if(tokens[curr].name != "{")
-    {
-        line();
-    }
-    else
-    {
-        nextToken();
-        if(tokens[curr].name != "}")
-        {
-            do
-            {
-                line();
-
-            }
-            while (tokens[curr].name != "}" && !eof());
-            
-            if(tokens[curr].name != "}")
-            {
-                output += "Line ";
-                output += std::to_string(tokens[curr].line);
-                output += ": expected closed curly bracket\n";
-                nextToken();
-            }
-            else
-                nextToken();
-        }
-    }
-    
-    if(tokens[curr].name == "else")
-    {
-        nextToken();
-        if(tokens[curr].name != "{")
-             line();
-        else
-        {
-            nextToken();
-            if(tokens[curr].name != "}")
-            {
-                do
-                {
-                    line();
-                }
-                while (tokens[curr].name != "}" && !eof());
-                
-                if(tokens[curr].name != "}")
-                {
-                    output += "Line ";
-                    output += std::to_string(tokens[curr].line);
-                    output += ": expected closed curly bracket\n";
-                    nextToken();
-                }
-                else
-                    nextToken();
-            }
-        }
-    }
+bool line() { //reading lines inside of a function after a "{" was read
+	bool success = true;
+	bool error = false;
+	int temp = 0; //used for error recovery
+	if(nextToken().name == "identifier") { //call_function or assign or error
+		increment(); //consume identifier
+		if(nextToken().word == "=") {
+			if(assign()) {}
+			else {
+				cout << "Line " << currentToken().line << ":\t" << "expected identifier or value" << '\n';
+				temp = currentToken().line;
+				error = true;
+			}
+		}
+		else if(nextToken().word == "(") {
+			success = call_function();
+			if(success) {}
+			else { 
+				temp = currentToken().line;
+				error = true;
+			}
+			if(nextToken().word == ";" && !error) {
+				increment();
+			}
+			else if(success) {
+				cout << "Line " << currentToken().line << ":\t" << "expected delimiter ;" << '\n';
+			}
+			else {
+				error = true;
+			}
+		}
+		else if(nextToken().word == "{" || nextToken().word == "}" || 
+			nextToken().word == ";" || nextToken().name == "identifier") {
+			cout << "Line " << currentToken().line << ":\t" << "expected identifier or value" << '\n';
+		}
+	}
+	else if(nextToken().word == "print" || nextToken().word == "read") { //call_function for "print" and "read"
+		increment();
+		if(nextToken().word == "(") {
+			//index--; //reset to beginning to call call_function()
+			success = call_function();
+			if(success) {}
+				else { 
+					temp = currentToken().line;
+					error = true;
+				}
+		}
+		if(nextToken().word == ";" && !error) {
+			increment(); //consume ";"
+		}
+		else {
+			cout << "Line " << currentToken().line << ":\t" << "expected delimiter ;" << '\n';
+			temp = currentToken().line;
+			error = true;
+		}
+	}
+	else if(isType(nextToken().word)) {
+		dvar_local();
+	}
+	else if(nextToken().word == "if") {
+		success = if_function();
+		if(success) {}
+		else { 
+			temp = currentToken().line;
+			error = true;
+		}
+	}
+	else if(nextToken().word == "while") {
+		success = while_function();
+		if(success) {}
+		else { 
+			temp = currentToken().line;
+			error = true;
+		}
+	}
+	else if(nextToken().word == "return") {
+		success = return_function();
+		if(success) {}
+		else { 
+			temp = currentToken().line;
+			error = true;
+		}
+	}
+	else if(isLast()) {
+		cout << "Line " << currentToken().line << ":\t" << "expected delimiter }" << '\n';
+	}
+	else if(nextToken().word == "}") { //empty line
+		success = true;	
+	}
+	else {
+		cout << "Line " << currentToken().line << ":\t" << "expected identifier or value" << '\n';
+	}
+	if(error) {
+		errorHandling(temp);
+	}
+	return success;
 }
 
-void line()
-{
-    if(tokens[curr].type == "IDENTIFIER" )
-    {
-        if(tokens[curr+1].name == "=")
-            assign();
-        else if(tokens[curr+1].name == "(")
-            call_function();
-        else
-        {
-            output += "Line ";
-            output += std::to_string(tokens[curr].line);
-            output += ": incorrect line statement/n";
-            nextToken();
-        }
-    }
-    
-    else if(tokens[curr].name == "if")
-        _if();
-    
-    else if(tokens[curr].name == "while")
-    {
-         
-        _while();
-    }
-    else if(tokens[curr].name == "return")
-        _return();
-    
-    else if(tokens[curr].name == "int" || tokens[curr].name == "char" || tokens[curr].name == "float" || tokens[curr].name == "boolean" || tokens[curr].name == "string" || tokens[curr].name == "void")
-    {
-        dvar_local();
-    }
-    else
-    {
-          
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": not a valid statement\n";
-        nextToken();
-    }
+bool dvar_local() {
+	bool success = true;
+	bool error = false;
+	int temp = 0; //used for error recovery
+	if(isType(nextToken().word)) {
+		increment();
+	}
+	else {
+		cout << "Line " << currentToken().line << ":\t" << "expected type" << '\n';
+	}
+	do {
+		if(nextToken().name == "identifier") {
+			increment();
+		}
+		else {
+			cout << "Line " << currentToken().line << ":\t" << "expected identifier" << '\n';	
+			temp = currentToken().line;
+			error = true;
+		}
+		while(nextToken().word == "," && !error) {
+			increment();
+			if(nextToken().name == "identifier") {
+				increment();
+			}
+			else {
+				cout << "Line " << currentToken().line << ":\t" << "expected identifier" << '\n';	
+				temp = currentToken().line;
+				error = true;
+			}
+		}
+		if(nextToken().word == ";" && !error) {
+			//do nothing 
+		}
+		else if(nextToken().word == "=" && !error) {
+			increment();
+			success = exprlog();
+			if(!success || nextToken().word != ";") {
+				error = true;
+				temp = currentToken().line;
+				if(!success) {
+					cout << "Line " <<currentToken().line << ":\t" << "expected identifier or value" << '\n';
+				}
+				else {
+					cout << "Line " <<currentToken().line << ":\t" << "expected delimiter ;" << '\n';
+				}
+			}
+		}
+		else if (!error) {
+			error = true;
+			cout << "Line " <<currentToken().line << ":\t" << "expected delimiter ;" << '\n';	
+			temp = currentToken().line;
+		}
+		if(error) {
+			errorHandling(temp);
+		}
+	} while(nextToken().word != ";" && !error);
+	if(nextToken().word == ";" && !error) {
+		increment();
+		success = true;
+	}
+	return success;
 }
 
-void parameter()
-{
-    if(tokens[curr].name == "int" || tokens[curr].name == "char" || tokens[curr].name == "float" || tokens[curr].name == "boolean" || tokens[curr].name == "string" || tokens[curr].name == "void")
-    {
-        nextToken();
-         
-    }
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected type\n";
-        nextToken();
-    }
-    
-    if(tokens[curr].type == "IDENTIFIER")
-    {
-        nextToken();
-         
-    }
-    else
-    {
-        
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected identifier\n";
-        nextToken();
-    }
-    
-    while(tokens[curr].name == ",")
-    {
-        nextToken();
-         
-        if(tokens[curr].name == "int" || tokens[curr].name == "char" || tokens[curr].name == "float" || tokens[curr].name == "boolean" || tokens[curr].name == "string" || tokens[curr].name == "void")
-        {
-            nextToken();
-             
-        }
-        else
-        {
-            output += "Line ";
-            output += std::to_string(tokens[curr].line);
-            output += ": expected type\n";
-            nextToken();
-        }
-        
-        if(tokens[curr].type == "IDENTIFIER")
-        {
-            nextToken();
-             
-        }
-        else
-        {
-            
-            output += "Line ";
-            output += std::to_string(tokens[curr].line);
-            output += ": expected identifier\n";
-            nextToken();
-        }
-    }
+bool if_function() {
+	bool success = true;
+	if(nextToken().word == "if") {
+		increment();
+	}
+	else {
+		success = false;
+		cout << "Line " << currentToken().line << ":\t" << "expected identifier" << '\n';
+	}
+	if(nextToken().word == "(" && success) {
+		increment();
+		success = exprlog();
+		if(success) {
+			//increment();
+		}
+		else if (success) {
+			cout << "Line " << currentToken().line << ":\t" << "expected identifier or value" << '\n';
+		}
+	}
+	else { 
+		success = false;
+		cout << "Line " << currentToken().line << ":\t" << "expected delimiter (" << '\n';
+	}
+	if(nextToken().word == ")" && success) {
+		increment();
+	}
+	else {
+		success = false;
+		cout << "Line " << currentToken().line << ":\t" << "expected delimiter )" << '\n';
+	}
+	if(nextToken().word == "{" && success) { //first curly braces
+		increment();
+		do {
+			success = line();
+		} while(nextToken().word != "}" && !isLast() && success);
+	}
+	if(nextToken().word == "}") {
+		increment();
+	}
+	else if(success) {
+		success = line();
+	}
+	if(nextToken().word == "else" && success) {
+		increment();
+		if(nextToken().word == "{" && success) { //first curly braces
+			increment();
+			do {
+				success = line();
+			} while(nextToken().word != "}" && !isLast() && success);	
+		}
+		if(nextToken().word == "}") {
+			increment();
+		}
+		else if(success) {
+			success = line(); //top line on diagram
+		}
+	}
+	//increment();
+	return success;
 }
 
-void dmethod()
-{
-    if(tokens[curr].name == "(")
-    {
-        nextToken();
-         
-    }
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected '(' \n";
-        nextToken();
-    }
-    
-    if(tokens[curr].name == "int" || tokens[curr].name == "char" || tokens[curr].name == "float" || tokens[curr].name == "boolean" || tokens[curr].name == "string" || tokens[curr].name == "void")
-    {
-        parameter();
-         
-    }
-    
-
-    if(tokens[curr].name == ")")
-    {
-        
-        nextToken();
-         
-    }
-    
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected ')' \n";
-        nextToken();
-    }
-
-    if(tokens[curr].name == "{")
-    {
-        nextToken();
-         
-    }
-    
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected '{' \n";
-        nextToken();
-    }
-    
-    if(tokens[curr].name != "}")
-    {
-        do
-        {
-            line();
-        }
-        while (tokens[curr].name != "}" && !eof());
-        
-        if(tokens[curr].name != "}")
-        {
-            output += "Line ";
-            output += std::to_string(tokens[curr].line);
-            output += ": expected closed curly bracket\n";
-            nextToken();
-        }
-        else
-            nextToken();
-    }
+bool while_function() {
+	bool success = true;
+	if(nextToken().word == "while") {
+		increment();
+		if(nextToken().word == "(") {
+			increment();
+			success = exprlog();
+			if(success) {
+				if(nextToken().word == ")") {
+					success = true; //not needed, but easier to see what's happening
+					increment(); //consume ")"
+				}
+				else if(nextToken().word != ")") {
+					cout << "Line " << currentToken().line << ":\t" << "expected delimiter )" << '\n';
+					success = false;
+				}
+			}
+			else {
+				cout << "Line " << currentToken().line << ":\t" << "expected identifier or value" << '\n';
+			}
+		}
+		else { 
+			success = false;
+			cout << "Line " << currentToken().line << ":\t" << "expected delimiter (" << '\n';
+		}
+		if(nextToken().word == "{" && success) { //first curly braces
+			increment();
+			do {
+				success = line();
+			} while(nextToken().word != "}" && !isLast() && success);
+		}
+		if(nextToken().word == "}" && success) {
+			increment();
+		}
+		else if(success) {
+			success = line();
+		}
+	}
+	return success;
 }
 
-void dvar_local()
-{
-    
-     if(tokens[curr].name == "int" || tokens[curr].name == "char" || tokens[curr].name == "float" || tokens[curr].name == "boolean" || tokens[curr].name == "string" || tokens[curr].name == "void")
-     {
-         nextToken();
-     }
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected type\n";
-        nextToken();
-
-    }
-    
-    do
-    {
-        if(tokens[curr].type == "IDENTIFIER")
-        {
-            nextToken();
-        }
-        
-        else
-        {
-            output += "Line ";
-            output += std::to_string(tokens[curr].line);
-            output += ": expected identifier'\n";
-            nextToken();
-
-        }
-                if(tokens[curr].name != "," && tokens[curr].name != ";")
-                {
-                    if(tokens[curr].name == "=")
-                    {
-                        nextToken();
-                    }
-                    else
-                    {
-                        output += "Line ";
-                        output += std::to_string(tokens[curr].line);
-                        output += ": expected '='\n";
-                        nextToken();
-                    }
-                    
-                    exprlog();
-                    if(tokens[curr].name == ",")
-                        nextToken();
-                }
-        
-            else if(tokens[curr].name == ",")
-                nextToken();
-            }
-        while (tokens[curr].name != ";" && !eof());
-        
-        if(tokens[curr].name == ";")
-            nextToken();
-        else
-        {
-            output += "Line ";
-            output += std::to_string(tokens[curr].line);
-            output += ": expected ';'\n";
-            nextToken();
-        }
+bool assign() {
+	bool success = false;
+	if(nextToken().word == "=") {
+		increment();
+		success = exprlog();
+	}
+	if(nextToken().word == ";" && success) {
+		increment(); //consume ;
+	}
+	else if(success) { //only check for delimiter if there are no errors
+		cout << "Line " << currentToken().line << ":" << "\texpected delimiter ;" << '\n';
+	}
+	else if(!success) {
+		//do nothing, line() will take care of error
+	}
+	else {
+		success = false;
+	}
+	return success;
 }
 
-void dvar_global()
-{
-    while(tokens[curr].name == ",")
-    {
-        nextToken();
-        
-        if(tokens[curr].type == "IDENTIFIER")
-        {
-            nextToken();
-        }
-        else
-        {
-            output += "Line ";
-            output += std::to_string(tokens[curr].line);
-            output += ": expected identifier";
-            nextToken();
-        }
-    }
-    
-    if(tokens[curr].name == ";")
-        nextToken();
-    else
-    {
-        output += "Line ";
-        output += std::to_string(tokens[curr].line);
-        output += ": expected ';'\n";
-        nextToken();
-    }
+bool call_function() { //after having read "identifier", "print", or "read" (sitting at this index)
+	bool success = false;
+	if(nextToken().word == "(") { 
+		increment(); //consume "("
+		success = true;
+	}
+	else {
+		success = false;
+		cout << "Line " << currentToken().line << ":\t" << "expected delimiter (" << '\n';
+	}
+	if(nextToken().word == ")" && success) {
+		success = true;
+		increment(); //consume ")"
+	}
+	else if(!success) {
+		success = false;
+		cout << "Line " << currentToken().line << ":\t" << "expected delimiter )" << '\n';
+	}
+	else {
+		do {
+			if(exprlog() && success) {
+				success = true;
+				//increment(); //consume valid exprlog, sitting on exprlog
+			}
+			else {
+				success = false;
+			}
+			do {
+				if(nextToken().word == "," && success) {
+					increment(); //consume comma
+					if(exprlog()) {
+						success = true;
+						//increment(); //consume valid exprlog
+					}
+					else {
+						success = false;
+					}
+				}
+			} while(nextToken().word != ")" && success);
+		} while(nextToken().word != ")" && success);
+		if(!success) {
+			cout << "Line " << currentToken().line << ":\t" << "expected identifier or value" << '\n';
+		}
+		else if(nextToken().word == ")") {
+			increment();
+		}
+	}
+	return success;
 }
 
-void program()
-{
-    
-    
-    if(tokens.size() !=0)
-    {
-        do
-        {
-             
-            if(tokens[curr].name == "int" || tokens[curr].name == "char" || tokens[curr].name == "float" || tokens[curr].name == "boolean" || tokens[curr].name == "string" || tokens[curr].name == "void")
-            {
-                nextToken();
-                 
-            }
-            else
-            {
-                output += "Line ";
-                output += std::to_string(tokens[curr].line);
-                output +=  ": expected type\n";
-            }
-            
-            if(tokens[curr].type == "IDENTIFIER")
-            {
-                nextToken();
-                 
-            }
-            else
-            {
-                output += "Line ";
-                output += std::to_string(tokens[curr].line);
-                output += ": Expected identifier\n";
-                
-            }
-            
-            if(tokens[curr].name == "(")
-            {
-                dmethod();
-            }
-            else
-            {
-                dvar_global();
-            }
-        }
-        while(!eof());
-    }
+bool return_function() {
+	bool success = false;
+	if(nextToken().word == "return") { 
+		increment();
+		success = true;
+	}
+	if(nextToken().word == ";") { 
+		increment(); //consume ";"
+		success = true;
+	}
+	else {
+		success = exprlog();
+		if(nextToken().word == ";") {
+			increment();
+		}
+		else {
+			success = false;
+			cout << "Line " << currentToken().line << ":\t" << "expected delimiter ;" << '\n';
+		}
+	}
+	return success;
+}
+
+bool exprlog() { //after reading "=" (if calling assign)
+	bool success = false;
+	if(opand()) {
+		if(nextToken().word == "|") {
+			increment();
+			success = exprlog(); //recursive call
+		}
+		else {
+			success = true;
+		}
+	}
+	return success;
+}
+
+bool opand() {
+	bool success = false;
+	if(opno()) {
+		if(nextToken().word == "&") {
+			increment();
+			success = opand(); //recursive call
+		}
+		else {
+			success = true;
+		}
+	}
+	return success;
+}
+
+bool opno() {
+	bool success = false;
+	if(nextToken().word == "!") {
+		increment();
+		success = exprel();
+	}
+	else {
+		success = exprel();
+	}
+	return success;
+}
+
+bool exprel() {
+	bool success = false;
+	if(expr()) {
+		if(nextToken().word == ">" || nextToken().word == "<") {
+			increment();
+			success = exprel(); //recursive call
+		}
+		else {
+			success = true;
+		}
+	}
+	else {
+		success = false;
+	}
+	return success;
+}
+
+bool expr() {
+	bool success = false;
+	if(product()) {
+		if(nextToken().word == "+" || nextToken().word == "-") {
+			increment();
+			success = expr(); //recursive call
+		}
+		else {
+			success = true;
+		}
+	}
+	else {
+		success = false;
+	}
+	return success;
+}
+
+bool product() {
+	bool success = false;
+	if(sign()) {
+		if(nextToken().word == "/" || nextToken().word == "*") {
+			increment();
+			success = product(); //recursive call
+		}
+		else {
+			success = true;
+		}
+	}
+	else {
+		success = false;
+	}
+	return success;
+}
+
+bool sign() {
+	bool success = false;
+	if(nextToken().word == "-") {
+		increment();
+		success = term();
+	}
+	else {
+		success = term();
+	}
+	return success;
+}
+
+bool term() { //still need to add a couple functions
+	bool success = false;
+	if(nextToken().name == "character" || nextToken().name == "integer" || 
+		nextToken().name == "float" || nextToken().name == "identifier" || 
+		nextToken().name == "string" || nextToken().name == "hexadecimal" ||
+		nextToken().name == "octal") {
+		success = true;
+		if(nextToken().name == "identifier") { //call_function
+			increment(); //consume identifier
+		if(nextToken().word == "(") {
+			success = call_function();
+			index--; //must step back
+		}
+		else {
+			index--;
+		}
+		}
+	}
+	else if(nextToken().word == "true" || nextToken().word == "false") {
+		success = true;
+	}
+	else if(nextToken().word == "(") {
+		increment();
+		success = exprlog();
+		if(nextToken().word == ")" && success) { //added the second condition
+			success = true;
+		}
+		else {
+			success = false;
+		}
+	}
+	if(success) {
+		increment(); //consume valid term
+	}
+	return success;
 }

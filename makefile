@@ -1,16 +1,19 @@
-EXEC = run
-CC = g++ -std=gnu++11
-CFLAGS = -c -Wall
+EXEC=run	# name of executable is run
+CC=g++		# compile with g++
+CFLAGS=-std=c++11 -c  -Wall 
 
-$(EXEC) :parser.o lexer.o
+all: $(EXEC)
+
+$(EXEC): parser.o lexer.o
 	$(CC) -o $(EXEC) parser.o lexer.o
 
-parser.o:Header.h parser.cpp lexer.cpp
+parser.o: parser.cpp
 	$(CC) $(CFLAGS) parser.cpp
-lexer.o:Header.h lexer.cpp
-	$(CC) $(CFLAGS) lexer.cpp
-symboltable.0:Header.h symboltable.cpp
-	$(CC) $(CFLAGS) symboltable.cpp
-clean :
-	$(RM) *.o
 
+lexer.o: lexer.cpp Header.h
+	$(CC) $(CFLAGS) lexer.cpp
+	
+clean: 
+	rm -f *.o
+	rm -f $(EXEC)
+	rm -f *output.txt
