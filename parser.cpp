@@ -36,8 +36,14 @@ int main(int argc, char* argv[])
     
     bool testt = false;
    
-    ST->insert("t","test","ttest");
-    testt = ST->search("tr");
+    
+    ST->insert("t", "value", "scope");
+    ST->insert("t", "1","2");
+    
+    testt=ST->search("t","value");
+    
+    
+    std::cout<<testt;
 }
 
 bool eol()
