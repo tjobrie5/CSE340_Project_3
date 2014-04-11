@@ -12,7 +12,7 @@ parsed interpretation of the lexical analysis of the input. */
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include "Header.h"
+#include "lexer.hpp"
 using std::cout;
 using std::string;
 using std::vector;
