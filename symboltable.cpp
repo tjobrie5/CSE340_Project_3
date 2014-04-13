@@ -87,13 +87,16 @@ public:
     
     string getType(string name, string scope)
     {
+        string n, s;
+        n = name;
+        s = scope;
         vector<string> v;
-        unordered_map<string, vector<string>>::const_iterator found = ST.find(name);
+        unordered_map<string, vector<string>>::const_iterator found = ST.find(n);
         
         v = found->second;
         for(int i = 1; i <v.size(); i = i+2)
         {
-            if(v[i] == scope)
+            if(v[i] == s)
                 return v[i-1];
         }
         
@@ -104,6 +107,7 @@ public:
     
     void print()
     {
+        cout << "----------------------------" << endl;
         vector<string> v;
         for ( auto it = ST.begin(); it != ST.end(); ++it )
         {
@@ -140,16 +144,12 @@ public:
 
 
 class Cube {
+public:
 	int cube[11][7][7];
 public:
     
 	Cube() {
-        
-	}
-    
-	void buildCube()
-	{
-		//plus
+        //plus
 		cube[1][1][1] = { 1 };
 		cube[OP_PLUS][INTEGEr][FlOAt] = FlOAt;
 		cube[OP_PLUS][INTEGEr][CHAr] = 0;
@@ -486,7 +486,7 @@ public:
 		cube[OP_OR][VOId][BOOl] = 0;
 		cube[OP_OR][VOId][VOId] = 0;
         
-        
+
 	}
     
 };

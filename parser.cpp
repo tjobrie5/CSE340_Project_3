@@ -1,3 +1,5 @@
+//Chris's Parser
+
 #include"lexer.hpp"
 #include"parser.hpp"
 #include <string>
@@ -7,7 +9,8 @@ string name ="";
 string type = "";
 string value= "";
 string scope= "global";
-
+bool methodReDec = false;
+string leftType = "";
 semantics* sem = new semantics();
 
 vector<string> tempVector;
@@ -134,13 +137,35 @@ bool Parser::program(){
 
 bool Parser::dvar_global(){
     bool keepTrying = true;
-    sem->st->insert(name,type,"global"); //###############################
+    bool test = sem->unicity(currentToken_.getTokenWord(),scope);
+    
+    if(!test)  //#######################
+    {
+        std::stringstream convert;
+        convert << currentToken_.getTokenLineNumber();
+        writeError("Line " + convert.str() + " Duplicate Variable " + currentToken_.getTokenWord());
+        
+    }
+    else
+        sem->st->insert(name,type,"global"); //###############################
     do{
         if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ","){
             nextToken();
             if(currentToken_.getTokenName() == Tokens::ID){
                 name = currentToken_.getTokenWord(); //###############################
-                sem->st->insert(name, type, "global"); //###############################
+                
+                test = sem->unicity(currentToken_.getTokenWord(),scope); //########################
+                
+                if(!test)  //#######################
+                {
+                    std::stringstream convert;
+                    convert << currentToken_.getTokenLineNumber();
+                    writeError("Line " + convert.str() + " Duplicate Variable " + currentToken_.getTokenWord());
+                    
+                }
+                else
+                    sem->st->insert(name, type, "global"); //###############################
+                
                 nextToken();
             }
             else{
@@ -182,9 +207,22 @@ bool Parser::dvar_local(){
         do{
             if(currentToken_.getTokenName() == Tokens::ID){
                 name = currentToken_.getTokenWord(); //###############################
-                sem->st->insert(name, type, scope);
+                
+                bool test = sem->unicity(currentToken_.getTokenWord(),scope);
+                
+                if(!test)  //#######################
+                {
+                    std::stringstream convert;
+                    convert << currentToken_.getTokenLineNumber();
+                    writeError("Line " + convert.str() + " Duplicate Variable " + currentToken_.getTokenWord());
+                    
+                }
+                else
+                    sem->st->insert(name, type, scope);
+                
                 nextToken();
-
+                //leftType = name;  //##############
+                //cout << name << endl << endl;
                 //optional = exprlog
                 if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "="){
                     nextToken();
@@ -215,6 +253,8 @@ bool Parser::dvar_local(){
 
         if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ";"){
             nextToken();
+            while(!sem->Stack.empty())
+                  sem->Stack.pop();
             return true;
         }
         else{
@@ -227,6 +267,8 @@ bool Parser::dvar_local(){
     }
     else{
         //expected type where there is none
+        while(!sem->Stack.empty())
+            sem->Stack.pop();
         return false;
     }
 }
@@ -247,7 +289,20 @@ bool Parser::dmethod(){
                 sem->st->insert(tempVector[i], tempVector[i+1], name);
                 
             }
-            sem->st->insert(name, type, "function");  //###############################
+            
+            tempVector.clear(); // removes vector #####
+            
+            bool test = sem->unicity(name,scope);
+            
+            if(!test)  //#######################
+            {
+                std::stringstream convert;
+                convert << currentToken_.getTokenLineNumber();
+                writeError("Line " + convert.str() + " Duplicate Method " + name);
+            }
+            else
+                sem->st->insert(name, type, "function");  //###############################
+            
             nextToken();
             if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "{"){
                 scope = name; //###############################
@@ -572,15 +627,32 @@ bool Parser::assign(){
         {
             std::stringstream convert;
             convert << currentToken_.getTokenLineNumber();
-            writeError("Line " + convert.str() + "Variable Not found");
+            writeError("Line " + convert.str() + "Variable " + currentToken_.getTokenWord() + " Not found");
         }
-
+        else
+        {
+                name = currentToken_.getTokenWord();
+                //cout <<"----" << name << "----" << scope << endl;
+                leftType = sem->st->getType(name, scope);
+        }
+        
         nextToken();
         if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "="){
             nextToken();
             if(exprlog()){
                 if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ";"){
+                    bool typetest = sem->typeCheck(leftType); //###############################
+                    if(!typetest)
+                    {
+                        std::stringstream convert;
+                        convert << currentToken_.getTokenLineNumber();
+                        writeError("Type mismatch in line " + convert.str());
+                   }
+                    
                     nextToken();
+                    while(!sem->Stack.empty())
+                        sem->Stack.pop();
+
                     return true;
                 }
                 else{
@@ -600,7 +672,9 @@ bool Parser::assign(){
             }
         }
         else{
-            //no equals sign
+            while(!sem->Stack.empty())
+                sem->Stack.pop();
+
             return false;
         }
     }
@@ -623,6 +697,16 @@ bool Parser::returnstmt(){
         else{
             //not a semicolon, so it must be an exprlog, then a semicolon
             if(exprlog()){
+                string returnType = sem->st->getType(scope, "function");
+                if(!sem->typeCheck(returnType))
+                {
+                    std::stringstream convert;
+                    convert << currentToken_.getTokenLineNumber();
+                    writeError("Line " + convert.str() + " return type Mismatch");
+                    return false;
+
+                }
+                
                 if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ";"){
                     nextToken();
                     return true;
@@ -719,7 +803,7 @@ bool Parser::call_function(){
                     
                     std::stringstream convert;
                     convert << currentToken_.getTokenLineNumber();
-                    writeError("Line " + convert.str() + "Method Not found");
+                    writeError("Line " + convert.str() + "Method " + name + " Not found");
                 }
                 nextToken();
                 if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ";"){
@@ -827,6 +911,7 @@ bool Parser::exprlog(){
 bool Parser::opand(){
     if(opno()){
         while(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "&"){
+            sem->Stack.push(currentToken_.getTokenWord()); //######
             nextToken();
             if(!opno()){
                 return false;
@@ -841,6 +926,7 @@ bool Parser::opand(){
 
 bool Parser::opno(){
     if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "!"){
+        sem->Stack.push(currentToken_.getTokenWord()); //#####
         nextToken();
     }
     return exprel();
@@ -862,6 +948,7 @@ bool Parser::exprelConditional(){
         }
         else{
             if(currentToken_.getTokenName() == Tokens::OPERATOR && (currentToken_.getTokenWord() == "=" || currentToken_.getTokenWord() == ">" || currentToken_.getTokenWord() == "<")){
+                sem->Stack.push(currentToken_.getTokenWord()); //#######
                 nextToken();
                 if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "="){
                     nextToken();
@@ -896,6 +983,7 @@ bool Parser::exprel(){
 bool Parser::expr(){
     if(product()){
         while((currentToken_.getTokenName() == Tokens::OPERATOR) && (currentToken_.getTokenWord() == "+" || currentToken_.getTokenWord() == "-")){
+            sem->Stack.push(currentToken_.getTokenWord()); //#####
             nextToken();
             if(!product()){
                 return false;
@@ -911,6 +999,8 @@ bool Parser::expr(){
 bool Parser::product(){
     if(sign()){
         while((currentToken_.getTokenName() == Tokens::OPERATOR) && (currentToken_.getTokenWord() == "/" || currentToken_.getTokenWord() == "*" || currentToken_.getTokenWord() == "%")){
+            Tokens::type  convert = currentToken_.getTokenName();
+            sem->Stack.push(currentToken_.getTokenWord()); //#####
             nextToken();
             if(!sign()){
                 return false;
@@ -925,6 +1015,7 @@ bool Parser::product(){
 
 bool Parser::sign(){
     if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "-"){
+        sem->Stack.push(currentToken_.getTokenWord()); //#######
         nextToken();
     }
     return term();
@@ -941,8 +1032,8 @@ bool Parser::term(){
         {
             std::stringstream convert;
             convert << currentToken_.getTokenLineNumber();
-            writeError("Line " + convert.str() + "Variable Not found");
-            cout << "------" << scope + " "+ currentToken_.getTokenWord();
+            writeError("Line " + convert.str() + "Variable" + currentToken_.getTokenWord() + "Not found");
+           // cout << "------" << scope + " "+ currentToken_.getTokenWord();
         }
         
         nextToken();
@@ -961,17 +1052,43 @@ bool Parser::term(){
             {
                 std::stringstream convert;
                 convert << currentToken_.getTokenLineNumber();
-                writeError("Line " + convert.str() + "Variable Not found");
+                writeError("Line " + convert.str() + "Variable" + currentToken_.getTokenWord() + "Not found");
                 
             }
+            
         }
     }
     //no else, we don't care to check here
     if(currentToken_.getTokenName() == Tokens::CHAR || currentToken_.getTokenName() == Tokens::INTEGER || currentToken_.getTokenName() == Tokens::FLOAT || currentToken_.getTokenName() == Tokens::ID || currentToken_.getTokenName() == Tokens::HEXADECIMAL || currentToken_.getTokenName() == Tokens::OCTAL || currentToken_.getTokenName() == Tokens::STRING){
+        Tokens::type temp = currentToken_.getTokenName();
+        
+        bool test;
+        switch(temp)
+        {
+            case Tokens::INTEGER : sem->Stack.push("INTEGER");
+                break;
+            case Tokens::CHAR : sem->Stack.push("CHAR"); break;
+            case Tokens::FLOAT : sem->Stack.push("FLOAT"); break;
+            case Tokens::STRING : sem->Stack.push("STRING"); break;
+            case Tokens::ID : test = sem->decleration(currentToken_.getTokenWord(), scope); //##########################
+                if(!test)
+                {
+                    std::stringstream convert;
+                    convert << currentToken_.getTokenLineNumber();
+                    writeError("Line " + convert.str() + "Variable" + currentToken_.getTokenWord() + "Not found");
+                    
+                }
+                else
+                    sem->Stack.push(sem->st->getType(currentToken_.getTokenWord(), scope));
+                break;
+            default: break;
+        }
         nextToken();
         return true;
     }
     if((currentToken_.getTokenName() == Tokens::KEYWORD) && (currentToken_.getTokenWord() == "true" || currentToken_.getTokenWord() == "false")){
+        
+        sem->Stack.push("BOOLEAN");
         nextToken();
         return true;
     }
