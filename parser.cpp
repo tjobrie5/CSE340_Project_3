@@ -1,882 +1,1062 @@
-/* 
-John Lillyblad
-CSE 340
-Assignment 2
-2/22/2014
-
-This program will take an input file as argv[1] and generate an output file argv[2] that is the 
-parsed interpretation of the lexical analysis of the input. */
-
-#include <iostream>
-#include <fstream>
+#include"lexer.hpp"
+#include"parser.hpp"
 #include <string>
-#include <unordered_map>
-#include <vector>
-#include "lexer.hpp"
-using std::cout;
-using std::string;
-using std::vector;
+#include "semantics.cpp"
+using namespace std;
+string name ="";
+string type = "";
+string value= "";
+string scope= "global";
 
-unsigned int index;
-vector<Token> myTokens(1); //empty list of tokens
+semantics* sem = new semantics();
 
-Token nextToken() { 
-	Token next;
-	if(index < myTokens.size() - 1) {
-		next = myTokens[index + 1];
-	}
-	else {
-		next = myTokens[index];
-	}
-	return next;
+vector<string> tempVector;
+
+void Parser::writeError(std::string errorMessage){
+    buildSuccessful = false;
+    std::cout << errorMessage << std::endl;
+    errorMessagesToWrite = errorMessagesToWrite + errorMessage + "\n";
 }
 
-Token currentToken() {
-	if(index >= 0)
-		return myTokens[index];
-	else
-		return myTokens[0];
+Parser::Parser(std::string out){
+    currentLocation_ = 0;
+    buildSuccessful = true;
+    outputFileName = out;
+    errorMessagesToWrite = "";
 }
 
-Token endToken() {
-	return myTokens[myTokens.size()-1];
+void Parser::importTokens(std::vector<Token> tL){
+    tokenList_ = tL;
+    if(tokenList_.size() == 0){
+        tokenList_.push_back(Token());
+    }
+    else{
+        currentToken_ = tokenList_[currentLocation_];
+    }
 }
 
-bool increment();
-bool isType(string s); //helper functions
-bool isLast();
-bool errorHandling(int temp);
+void Parser::printTokens(){
+    std::cout << "Name\t\tValue\t\tLine\n";
 
-bool Program();
-bool dvar_global();
-bool dvar_local();
-bool dmethod();
-bool parameter();
-bool line();
-bool if_function();
-bool while_function();
-bool assign();
-bool call_function();
-bool return_function();
-bool exprlog();
-bool opand();
-bool opno();
-bool exprel();
-bool expr();
-bool product();
-bool sign();
-bool term();
+    for(unsigned int i = 0; i < tokenList_.size(); i++){
 
+        std::string typeString;
+        switch(tokenList_[i].getTokenName()){
+            case 0:
+                typeString = "UNDECIDED\t";
+                break;
+            case 1:
+                typeString = "OPERATOR\t";
+                break;
+            case 2:
+                typeString = "DELIMITER\t";
+                break;
+            case 3:
+                typeString = "INTEGER\t";
+                break;
+            case 4:
+                typeString = "FLOAT\t\t";
+                break;
+            case 5:
+                typeString = "HEXADECIMAL ";
+                break;
+            case 6:
+                typeString = "OCTAL\t";
+                break;
+            case 7:
+                typeString = "STRING\t";
+                break;
+            case 8:
+                typeString = "CHARACTER\t";
+                break;
+            case 9:
+                typeString = "IDENTIFIER\t";
+                break;
+            case 10:
+                typeString = "KEYWORD\t";
+                break;
+            case 11:
+                typeString = "UNDEFINED\t";
+                break;
+            default:
+                break;
+        }
 
-void startFile(const char* filename) {
-	freopen(filename, "w", stdout); //initialize file (destroy existing, if applicable)
+        std::cout << typeString << "\t" << tokenList_[i].getTokenWord() << "\t\t" << tokenList_[i].getTokenLineNumber() << "\n";
+    }
 }
 
-int main(int argc, char* argv[]) {
-	index = 0; //index that will be used to iterate through vector of tokens
-	const char* filename = argv[2];
-	string line;
-	std::ifstream fin;		//input stream
-	fin.open(argv[1]);		//open input text file for input operations
-	startFile(filename);	//open output stream, redirect standart output to file. COMMENT THIS LINE OUT TO SEND EVERYTHING TO SCREEN FOR DEBUGGING.
+bool Parser::program(){
+//do special handling if there is only one token
 
-	if(fin.is_open()) {
-		while(getline(fin, line)) {
-			split_lines(line);
-		}
-		myTokens = getList();
-		/*for(size_t i = 0; i < myTokens.size(); i++) {
-			cout << "Index " << i << "\t\tline:" << myTokens[i].line << '\n';
-			cout << "Index " << i << "\t\tname:" << myTokens[i].name << '\n';
-			cout << "Index " << i << "\t\tword:" << myTokens[i].word << '\n';
-			cout << '\n';
-		}*/
-	}
-	//printList(myTokens); //uncomment to print tokens from lexer
+//    while(keepTrying){
+    
+    while(!isLastToken()){
+        if(identifyType()){
+            type = currentToken_.getTokenWord();//###############################
+            nextToken();
+            if(currentToken_.getTokenName() == Tokens::ID){
+                name = currentToken_.getTokenWord(); //###############################
+                nextToken();
+                if(currentToken_.getTokenName() == Tokens::DELIMITER && (currentToken_.getTokenWord() == "," || currentToken_.getTokenWord() == ";")){
+                    dvar_global();  //highly experimental
+                } else
+                if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "("){
+                    dmethod();  //experimental
+                }
+                else{
+                    backToken();//experimental
+                    std::stringstream convert;
+                    convert << currentToken_.getTokenLineNumber();
+                    writeError("Line " + convert.str() + ":\texpected delimiter ;");
+                    advanceToNextLine();
+                }
+            }
+            else{
+                //didn't get ID where one was expected
+                backToken();
+                std::stringstream convert;
+                convert << currentToken_.getTokenLineNumber();
+                writeError("Line " + convert.str() + ":\texpected identifier");
+                advanceToNextLine();
+            }
+        }
+        else{
+            std::stringstream convert;
+            convert << currentToken_.getTokenLineNumber();
+            writeError("Line " + convert.str() + ":\texpected type");
+            advanceToNextLine();           
+        }
+    }
 
-	if(Program() && index == myTokens.size() - 1) {
-		//freopen("CON","w",stdout); //uncomment for Windows IDE (Visual Studio)
-		freopen ("/dev/tty", "a", stdout); //uncomment for g++ 
-		cout << "Build successful" << '\n';
-	}
-	fin.close();
-	fclose(stdout);
-	return 0;
+    return true;
 }
 
-bool increment() {//if cannot increment when we should be able to, report fault
-	bool success = false;
-	if(index < myTokens.size() - 1) { //only increment if there is another valid token	
-		index++; 
-		success = true;
-	}
-	else if(currentToken().line == endToken().line) {
-		success = false;
-	}
-	return success;
+bool Parser::dvar_global(){
+    bool keepTrying = true;
+    sem->st->insert(name,type,"global"); //###############################
+    do{
+        if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ","){
+            nextToken();
+            if(currentToken_.getTokenName() == Tokens::ID){
+                name = currentToken_.getTokenWord(); //###############################
+                sem->st->insert(name, type, "global"); //###############################
+                nextToken();
+            }
+            else{
+                //wanted an ID, but didn't get one.
+                std::stringstream convert;
+                convert << currentToken_.getTokenLineNumber();
+                writeError("Line " + convert.str() + ":\texpected identifier");
+                advanceToNextLine();
+                return true;
+            }
+        }
+        else if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ";"){
+            nextToken();
+            keepTrying = false;
+        }
+        else{
+            //not a semicolon or a comma
+            backToken();
+            std::stringstream convert;
+            convert << currentToken_.getTokenLineNumber();
+            writeError("Line " + convert.str() + ":\texpected delimiter");
+            advanceToNextLine();
+            keepTrying = false;
+        }
+    }while(keepTrying);
+    return true;
 }
 
-bool isType(string s) { //evaluates word of a token
-	if(s == "int" || s == "char" || s == "string" || s == "float" || s == "boolean" || s == "integer"
-		|| s == "void")
-		return true;
-	else
-		return false;
+bool Parser::identifyType(){
+    return currentToken_.getTokenName() == Tokens::KEYWORD && (currentToken_.getTokenWord() == "integer" || currentToken_.getTokenWord() == "float" || currentToken_.getTokenWord() == "void" || currentToken_.getTokenWord() == "char" || currentToken_.getTokenWord() == "float" || currentToken_.getTokenWord() == "string" || currentToken_.getTokenWord() == "boolean");
 }
 
-bool isLast() { //determines if token is the last token
-	bool isLast = false;
-	if(index == myTokens.size() - 1) {
-		isLast = true;
-	}
-	return isLast;
+bool Parser::dvar_local(){
+    bool keepTrying = true;
+
+    if(identifyType()){
+        type = currentToken_.getTokenWord(); //###############################
+        nextToken();
+        do{
+            if(currentToken_.getTokenName() == Tokens::ID){
+                name = currentToken_.getTokenWord(); //###############################
+                sem->st->insert(name, type, scope);
+                nextToken();
+
+                //optional = exprlog
+                if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "="){
+                    nextToken();
+                    if(!exprlog()){
+                        //expected exprlog where there is none
+                        std::stringstream convert;
+                        convert << currentToken_.getTokenLineNumber();
+                        writeError("Line " + convert.str() + ":\texpected value or identifier");
+                        return false;
+                    }
+                }
+                if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ","){
+                    nextToken();
+                }
+                else{
+                    keepTrying = false;
+                }
+
+            }
+            else{
+                //expected ID where there is none
+                std::stringstream convert;
+                convert << currentToken_.getTokenLineNumber();
+                writeError("Line " + convert.str() + ":\texpected identifier");
+                return false;
+            }
+        }while(keepTrying);
+
+        if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ";"){
+            nextToken();
+            return true;
+        }
+        else{
+            //expected ; where there is none
+            std::stringstream convert;
+            convert << currentToken_.getTokenLineNumber();
+            writeError("Line " + convert.str() + ":\texpected delimiter ;");
+            return false;
+        }
+    }
+    else{
+        //expected type where there is none
+        return false;
+    }
 }
 
-bool errorHandling(int temp) {
-	bool success = true;
-	while(nextToken().word != ";" && nextToken().line == temp && !isLast()) {
-		if(increment() == false) {
-			success = false;
-		}
-	}
-	if(nextToken().word == ";") {
-		if(increment() == false) {//if there is no next token, consume ";"
-			success = false;
-		}
-		else {
-			while(nextToken().line == temp) {
-				if(increment() == false) {
-					success = false;
-				}
-			}
-		}
-	}
-	if(currentToken().word == "{" && nextToken().word == "}") {//skip past curly braces
-		increment();
-	}
-	return success;
+bool Parser::dmethod(){
+    if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "("){
+        nextToken();
+        if(identifyType()){
+            if(!parameter()){
+                advanceToNextLine();
+                return false;
+            }
+        }
+        //no else on this, it's optional
+        if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ")"){
+            for(int i = 0; i<tempVector.size(); i=i+2)
+            {
+                sem->st->insert(tempVector[i], tempVector[i+1], name);
+                
+            }
+            sem->st->insert(name, type, "function");  //###############################
+            nextToken();
+            if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "{"){
+                scope = name; //###############################
+                nextToken();
+
+                //0 or more lines
+                bool keepTrying = true;
+                while(keepTrying){
+                    if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "}") {
+                        keepTrying = false;
+                    }
+                    else{
+                        //if this is the last token, and the } is missing, it just spins its wheels here.
+                        if(isLastToken()){
+                            std::stringstream convert;
+                            convert << currentToken_.getTokenLineNumber();
+                            writeError("Line " + convert.str() + ":\texpected delimiter");
+                            advanceToNextLine();
+                            return true;
+                        }
+                        else{
+                            line();
+                        }
+                    }
+                }
+
+                if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "}"){
+                    nextToken();
+                    return true;
+                }
+                else{
+                    //missing }
+                    std::stringstream convert;
+                    convert << currentToken_.getTokenLineNumber();
+                    writeError("Line " + convert.str() + ":\texpected delimiter");
+                    advanceToNextLine();
+                    return true;
+                }
+            }
+            else{
+                //expected {
+                backToken(); //to account for overshooting
+                std::stringstream convert;
+                convert << currentToken_.getTokenLineNumber();
+                writeError("Line " + convert.str() + ":\texpected delimiter");
+                do{
+                    nextToken();
+                }while(!(currentToken_.getTokenWord() == "}" || isLastToken()));
+                nextToken();
+                return true;
+            }
+        }
+        else{
+            //missing )
+            std::stringstream convert;
+            convert << currentToken_.getTokenLineNumber();
+            writeError("Line " + convert.str() + ":\texpected delimiter )");
+            do{
+                nextToken();
+            }while(!(currentToken_.getTokenWord() == "}" || isLastToken()));
+            nextToken();
+            return true;
+        }
+    }
+    else{
+        //expected (
+        std::stringstream convert;
+        convert << currentToken_.getTokenLineNumber();
+        writeError("Line " + convert.str() + ":\texpected delimiter");
+        do{
+            nextToken();
+        }while(!(currentToken_.getTokenWord() == "}" || isLastToken()));
+        nextToken();
+        return true;
+    }
 }
 
-bool Program() {
-	bool success = true;
-	bool error = false;
-	int temp = 0; //used for error recovery
-	if(myTokens.size() == 0)
-		return true;
-	do {	
-		temp = currentToken().line;
-		if(index == 0) { //check for the first type of the program		
-			if(isType(currentToken().word)) {}//do nothing
-			else
-				cout << "Line " << currentToken().line << ":" << "\texpected type" << '\n';
-		}
-		else if(isType(nextToken().word)) {
-			increment();
-		}
-		else {
-			//cout << "Line " << nextToken().line << ":" << "\texpected type" << '\n';
-			error = true; 
-			if(nextToken().line == endToken().line) {
-				increment(); //consume final token, ending program
-			}
-		}
-		if(nextToken().name == "identifier" && !error) {
-			increment();
-		}
-		else if(nextToken().line != temp && !error) { //if next token is on next line
-			cout << "Line " << currentToken().line << ":" << "\texpected identifier" << '\n';	
-			temp = currentToken().line;
-			error = true;
-		}
-		else if(!error) {
-			cout << "Line " << currentToken().line << ":" << "\texpected identifier" << '\n';	
-			error = true;
-		}
-		if(nextToken().name == "delimiter" && nextToken().word != ";"  && nextToken().word != "," 
-			&& !error) {
-			success = dmethod();
-		}
-		else if(!error) {
-			dvar_global();
-		}
-		if(error) {
-			if(endToken().line == 1) { //check if error is on first line
-				increment();
-			}
-			else {
-				if(errorHandling(temp)) {	//this will increment to first token of next line
-					//do nothing			//errorHandling returns false if already on first token of next line
-				}
-			}
-		}
-		error = false; //reset error
-	} while(index < myTokens.size() - 1);
-	if(isType(currentToken().word) && currentToken().line > 1) {
-		cout << "Line " << currentToken().line << ":" << "\texpected identifier" << '\n';
-	}
-	else if(currentToken().name == "identifier" && currentToken().line > 1) {
-		cout << "Line " << currentToken().line << ":" << "\texpected type" << '\n';
-	}
-	return success;
+bool Parser::parameter(){
+    bool keepTrying = true;
+    do{
+        if(identifyType()){
+            string tempType = currentToken_.getTokenWord(); //########################
+            name += "-" + currentToken_.getTokenWord();  //###############################
+            nextToken();
+            if(currentToken_.getTokenName() == Tokens::ID){
+                tempVector.push_back(currentToken_.getTokenWord()); //###########
+                tempVector.push_back(tempType); //#########
+                nextToken();
+                if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ","){
+                    nextToken();
+                }
+                else{
+                    keepTrying = false;
+                }
+            }
+            else{
+                //expected ID where there is none
+                std::stringstream convert;
+                convert << currentToken_.getTokenLineNumber();
+                writeError("Line " + convert.str() + ":\texpected identifier");
+                return false;
+            }
+        }
+        else{
+            //expected type where there is none
+            std::stringstream convert;
+            convert << currentToken_.getTokenLineNumber();
+            writeError("Line " + convert.str() + ":\texpected type");
+            return false;
+        }
+
+    }while(keepTrying);
+    return true;
 }
 
-bool dvar_global() { //after reading a type and id
-	bool success = true;
-	bool error = false;
-	int temp = 0; //used for error recovery
+bool Parser::line(){
+    bool result;
 
-	while(nextToken().word == "," && !error) {
-		increment();
-		if(nextToken().name == "identifier") {
-			increment();
-		}
-		else {
-			temp = currentToken().line;
-			cout << "Line " << currentToken().line << ":\t" << "expected identifier" << '\n';	
-			error = true;
-		}
-	}
-	if(nextToken().name == "identifier" && !error && !isLast()) {
-		temp = currentToken().line;
-		cout << "Line " << currentToken().line << ":\t" << "expected delimiter ," << '\n';	
-		error = true;
-	}
-	else if(nextToken().word == ";" && !error) {
-		//do nothing
-	}
-	else if((nextToken().word != ";" || isLast()) && !error) {
-		if(isLast()) {
-			cout << "Line " << currentToken().line << ":\t" << "expected delimiter ;" << '\n';
-			error = true;
-		}
-		else if(!error) {
-			temp = currentToken().line;
-			cout << "Line " << currentToken().line << ":\t" << "expected delimiter ;" << '\n';
-			error = true;
-		}
-	}
-	if(error) {
-		errorHandling(temp);
-	}
-	if(!error)
-		increment();
-	return success;
+//hacky but it might just work
+if(currentToken_.getTokenWord() == "("){
+    backToken();
 }
 
-bool dmethod() { //after reading a type and id
-	bool success = true;
-	bool error = false;
-	int temp = 0; //used for error recovery
-	if(nextToken().word == "(") {
-		increment();
-		if(nextToken().word == ")") {
-			increment(); 
-		}
-		else if(isType(nextToken().word)) {
-			parameter();
-			if(nextToken().word == ")") {
-				increment();
-			}				
-			else {
-				cout << "Line " << currentToken().line << ":\t" << "expected delimiter )" << '\n';
-				temp = currentToken().line;
-				error = true;
-			}
-		}
-		else if(nextToken().name == "identifier") {
-			cout << "Line " << currentToken().line << ":\t" << "expected type" << '\n';
-			temp = currentToken().line;
-			error = true;
-		}
-		else if (!error) {
-			cout << "Line " << currentToken().line << ":\t" << "expected delimiter )" << '\n';
-			temp = currentToken().line;
-			error = true;
-		}
-		if(nextToken().word == "{"  && !error) {
-			increment();
-		}
-		else if(!error) {
-			cout << "Line " << currentToken().line << ":\t" << "expected delimiter {" << '\n';
-			increment();
-			error = true;
-		}
-		if(nextToken().word == "}" && !error) {
-			//do nothing
-		}
-		else if(!error) {
-			do {
-				success = line();
-			} while(nextToken().word != "}" && !isLast());
-			if(nextToken().word == "}" && !error) {
-				//do nothing //increment();
-			}
-			else if(!error) {
-				cout << "Line " << currentToken().line << ":\t" << "expected delimiter }" << '\n';
-				temp = currentToken().line;
-				error = true;
-			}
-		}
-	}
-	else if(!error) {
-		cout << "Line " << currentToken().line << ":\t" << "expected delimiter (" << '\n';
-		temp = currentToken().line;
-		error = true;
-	}
-	if(error) {
-		errorHandling(temp);
-	}
-	else if(!error) {
-		increment();
-	}
-	return success;
+
+    if(identifyType()){
+        result = dvar_local();
+        if(!result){
+            //skip to next line
+            advanceToNextLine();
+        }
+    }
+    else{
+        if(currentToken_.getTokenName() == Tokens::ID){
+            nextToken();
+            if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "("){
+                backToken();
+                result = call_function();
+                if(!result){
+                    //skip to next line
+                    advanceToNextLine();
+                }
+            }
+            else{
+                backToken();
+                result = assign();
+                if(!result){
+                    //skip to next line
+                    advanceToNextLine();
+                }
+            }
+        }
+        else{
+            if(currentToken_.getTokenName() == Tokens::KEYWORD){
+                if(currentToken_.getTokenWord() == "if"){
+                    result = ifstmt();
+                    if(!result){
+                        //dunno where to advance to...
+                        advanceToNextLine();
+                    }
+                } else
+                if(currentToken_.getTokenWord() == "while"){
+                    result = whilestmt();
+                    if(!result){
+                       //advance to next line i guess
+                        advanceToNextLine();
+                    }
+                } else
+                if(currentToken_.getTokenWord() == "return"){
+                    result = returnstmt();
+                    if(!result){
+                        //skip to next line
+                        advanceToNextLine();
+                    }
+                } else
+                if(currentToken_.getTokenWord() == "read"){
+                    result = call_function();
+                    if(!result){
+                        //skip to next line
+                        advanceToNextLine();
+                    }
+                } else
+                if(currentToken_.getTokenWord() == "print"){
+                    result = call_function();
+                    if(!result){
+                        //skip to next line
+                        advanceToNextLine();
+                    }
+                } else{
+                    //unidentified keyword - prediction failed
+                    return false;
+                }
+            }
+            else{
+                //no idea what this is - prediction failed to guess
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
-bool parameter() {
-	bool success = true;
-	bool error = false;
-	int temp = 0;	
-	do {
-		/*if(isType(currentToken().word)) {
-			increment();
-		}*/
-		if(isType(nextToken().word)) {
-			increment();
-		}
-		else { 
-			cout << "Line " << currentToken().line << ":" << "\texpected type" << '\n';
-			temp = currentToken().line;
-			error = true;
-		}
-		if(nextToken().name == "identifier" && !error) {
-			increment();
-		}
-		else if(!error) {
-			cout << "Line " << currentToken().line << ":" << "\texpected identifier" << '\n';
-			temp = currentToken().line;
-			error = true;
-		}
-		if((nextToken().word == "," || nextToken().word == ")") && !error) {
-			if(nextToken().word == ",") {
-				increment();
-			}
-		}
-		else if(!error) {
-			cout << "Line " << currentToken().line << ":\t" << "expected delimiter ," << '\n';
-			temp = currentToken().line;
-			error = true;
-		}
-	} while(isType(nextToken().word) && !error);
-	if(nextToken().name == "identifier" && !error) {
-		cout << "Line " << currentToken().line << ":" << "\texpected type" << '\n';
-		temp = currentToken().line;
-		error = true;
-	}
-	if(error) {
-		while(nextToken().line == temp && nextToken().word != ")") {
-			if(increment() == false) {
-				success = true;
-				break;
-			}
-		}
-	}
-	//increment();
-	return success;
+bool Parser::braceBlock(){
+    if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "{"){
+        nextToken();
+        bool keepTrying = true;
+        do{
+            if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "}"){
+                keepTrying = false;
+            }
+            else{
+                if(isLastToken()){
+                    return true;
+                }
+                line();
+            }
+        }while(keepTrying);
+
+        nextToken();
+        return true;
+    }
+    else{
+        line();
+        nextToken();
+        return true;
+    }
 }
 
-bool line() { //reading lines inside of a function after a "{" was read
-	bool success = true;
-	bool error = false;
-	int temp = 0; //used for error recovery
-	if(nextToken().name == "identifier") { //call_function or assign or error
-		increment(); //consume identifier
-		if(nextToken().word == "=") {
-			if(assign()) {}
-			else {
-				cout << "Line " << currentToken().line << ":\t" << "expected identifier or value" << '\n';
-				temp = currentToken().line;
-				error = true;
-			}
-		}
-		else if(nextToken().word == "(") {
-			success = call_function();
-			if(success) {}
-			else { 
-				temp = currentToken().line;
-				error = true;
-			}
-			if(nextToken().word == ";" && !error) {
-				increment();
-			}
-			else if(success) {
-				cout << "Line " << currentToken().line << ":\t" << "expected delimiter ;" << '\n';
-			}
-			else {
-				error = true;
-			}
-		}
-		else if(nextToken().word == "{" || nextToken().word == "}" || 
-			nextToken().word == ";" || nextToken().name == "identifier") {
-			cout << "Line " << currentToken().line << ":\t" << "expected identifier or value" << '\n';
-		}
-	}
-	else if(nextToken().word == "print" || nextToken().word == "read") { //call_function for "print" and "read"
-		increment();
-		if(nextToken().word == "(") {
-			//index--; //reset to beginning to call call_function()
-			success = call_function();
-			if(success) {}
-				else { 
-					temp = currentToken().line;
-					error = true;
-				}
-		}
-		if(nextToken().word == ";" && !error) {
-			increment(); //consume ";"
-		}
-		else {
-			cout << "Line " << currentToken().line << ":\t" << "expected delimiter ;" << '\n';
-			temp = currentToken().line;
-			error = true;
-		}
-	}
-	else if(isType(nextToken().word)) {
-		dvar_local();
-	}
-	else if(nextToken().word == "if") {
-		success = if_function();
-		if(success) {}
-		else { 
-			temp = currentToken().line;
-			error = true;
-		}
-	}
-	else if(nextToken().word == "while") {
-		success = while_function();
-		if(success) {}
-		else { 
-			temp = currentToken().line;
-			error = true;
-		}
-	}
-	else if(nextToken().word == "return") {
-		success = return_function();
-		if(success) {}
-		else { 
-			temp = currentToken().line;
-			error = true;
-		}
-	}
-	else if(isLast()) {
-		cout << "Line " << currentToken().line << ":\t" << "expected delimiter }" << '\n';
-	}
-	else if(nextToken().word == "}") { //empty line
-		success = true;	
-	}
-	else {
-		cout << "Line " << currentToken().line << ":\t" << "expected identifier or value" << '\n';
-	}
-	if(error) {
-		errorHandling(temp);
-	}
-	return success;
+bool Parser::ifstmt(){
+    if(currentToken_.getTokenName() == Tokens::KEYWORD && currentToken_.getTokenWord() == "if"){
+        nextToken();
+        if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "("){
+            nextToken();
+            if(exprlog()){
+                if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ")"){
+                    nextToken();
+                    braceBlock();
+                    if(currentToken_.getTokenWord() == "{"){
+                    backToken();
+                    }
+                    if(currentToken_.getTokenName() == Tokens::KEYWORD && currentToken_.getTokenWord() == "else"){
+                        nextToken();
+                        braceBlock();
+                    }//optional, no else clause
+                    return true;
+                    
+                }
+                else{
+                    //missing )
+                    std::stringstream convert;
+                    convert << currentToken_.getTokenLineNumber();
+                    writeError("Line " + convert.str() + ":\texpected delimiter");
+                    return false;
+                }
+            }
+            else{
+                //missing exprlog
+                std::stringstream convert;
+                convert << currentToken_.getTokenLineNumber();
+                writeError("Line " + convert.str() + ":\texpected value or identifier");
+                return false;
+            }
+        }
+        else{
+            //missing (
+            std::stringstream convert;
+            convert << currentToken_.getTokenLineNumber();
+            writeError("Line " + convert.str() + ":\texpected delimiter");
+            return false;
+        }
+    }
+    else{
+        //missing if
+        return false;
+    }
 }
 
-bool dvar_local() {
-	bool success = true;
-	bool error = false;
-	int temp = 0; //used for error recovery
-	if(isType(nextToken().word)) {
-		increment();
-	}
-	else {
-		cout << "Line " << currentToken().line << ":\t" << "expected type" << '\n';
-	}
-	do {
-		if(nextToken().name == "identifier") {
-			increment();
-		}
-		else {
-			cout << "Line " << currentToken().line << ":\t" << "expected identifier" << '\n';	
-			temp = currentToken().line;
-			error = true;
-		}
-		while(nextToken().word == "," && !error) {
-			increment();
-			if(nextToken().name == "identifier") {
-				increment();
-			}
-			else {
-				cout << "Line " << currentToken().line << ":\t" << "expected identifier" << '\n';	
-				temp = currentToken().line;
-				error = true;
-			}
-		}
-		if(nextToken().word == ";" && !error) {
-			//do nothing 
-		}
-		else if(nextToken().word == "=" && !error) {
-			increment();
-			success = exprlog();
-			if(!success || nextToken().word != ";") {
-				error = true;
-				temp = currentToken().line;
-				if(!success) {
-					cout << "Line " <<currentToken().line << ":\t" << "expected identifier or value" << '\n';
-				}
-				else {
-					cout << "Line " <<currentToken().line << ":\t" << "expected delimiter ;" << '\n';
-				}
-			}
-		}
-		else if (!error) {
-			error = true;
-			cout << "Line " <<currentToken().line << ":\t" << "expected delimiter ;" << '\n';	
-			temp = currentToken().line;
-		}
-		if(error) {
-			errorHandling(temp);
-		}
-	} while(nextToken().word != ";" && !error);
-	if(nextToken().word == ";" && !error) {
-		increment();
-		success = true;
-	}
-	return success;
+bool Parser::whilestmt(){
+    if(currentToken_.getTokenName() == Tokens::KEYWORD && currentToken_.getTokenWord() == "while"){
+        nextToken();
+        if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "("){
+            nextToken();
+            if(exprlog()){
+                if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ")"){
+                    nextToken();
+                    braceBlock();
+                    return true;
+                }
+                else{
+                    //missing )
+                    std::stringstream convert;
+                    convert << currentToken_.getTokenLineNumber();
+                    writeError("Line " + convert.str() + ":\texpected delimiter");
+                    return false;
+                }
+            }
+            else{
+                //missing exprlog
+                std::stringstream convert;
+                convert << currentToken_.getTokenLineNumber();
+                writeError("Line " + convert.str() + ":\texpected value or identifier");
+                return false;
+            }
+        }
+        else{
+            //missing (
+            std::stringstream convert;
+            convert << currentToken_.getTokenLineNumber();
+            writeError("Line " + convert.str() + ":\texpected delimiter");
+            return false;
+        }
+    }
+    else{
+        //missing while
+        return false;
+    }
 }
 
-bool if_function() {
-	bool success = true;
-	if(nextToken().word == "if") {
-		increment();
-	}
-	else {
-		success = false;
-		cout << "Line " << currentToken().line << ":\t" << "expected identifier" << '\n';
-	}
-	if(nextToken().word == "(" && success) {
-		increment();
-		success = exprlog();
-		if(success) {
-			//increment();
-		}
-		else if (success) {
-			cout << "Line " << currentToken().line << ":\t" << "expected identifier or value" << '\n';
-		}
-	}
-	else { 
-		success = false;
-		cout << "Line " << currentToken().line << ":\t" << "expected delimiter (" << '\n';
-	}
-	if(nextToken().word == ")" && success) {
-		increment();
-	}
-	else {
-		success = false;
-		cout << "Line " << currentToken().line << ":\t" << "expected delimiter )" << '\n';
-	}
-	if(nextToken().word == "{" && success) { //first curly braces
-		increment();
-		do {
-			success = line();
-		} while(nextToken().word != "}" && !isLast() && success);
-	}
-	if(nextToken().word == "}") {
-		increment();
-	}
-	else if(success) {
-		success = line();
-	}
-	if(nextToken().word == "else" && success) {
-		increment();
-		if(nextToken().word == "{" && success) { //first curly braces
-			increment();
-			do {
-				success = line();
-			} while(nextToken().word != "}" && !isLast() && success);	
-		}
-		if(nextToken().word == "}") {
-			increment();
-		}
-		else if(success) {
-			success = line(); //top line on diagram
-		}
-	}
-	//increment();
-	return success;
+bool Parser::assign(){
+    if(currentToken_.getTokenName() == Tokens::ID){
+        bool test = sem->decleration(currentToken_.getTokenWord(), scope); //############################
+        if(!test)
+        {
+            std::stringstream convert;
+            convert << currentToken_.getTokenLineNumber();
+            writeError("Line " + convert.str() + "Variable Not found");
+        }
+
+        nextToken();
+        if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "="){
+            nextToken();
+            if(exprlog()){
+                if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ";"){
+                    nextToken();
+                    return true;
+                }
+                else{
+                    //no semicolon
+                    std::stringstream convert;
+                    convert << currentToken_.getTokenLineNumber() - 1;
+                    writeError("Line " + convert.str() + ":\texpected delimiter ;");
+                    return false;
+                }
+            }
+            else{
+                //not an exprlog
+                std::stringstream convert;
+                convert << currentToken_.getTokenLineNumber();
+                writeError("Line " + convert.str() + ":\texpected value or identifier");
+                return false;
+            }
+        }
+        else{
+            //no equals sign
+            return false;
+        }
+    }
+    else{
+        //no id
+        std::stringstream convert;
+        convert << currentToken_.getTokenLineNumber();
+        writeError("Line " + convert.str() + ":\texpected identifier");
+        return false;
+    }
 }
 
-bool while_function() {
-	bool success = true;
-	if(nextToken().word == "while") {
-		increment();
-		if(nextToken().word == "(") {
-			increment();
-			success = exprlog();
-			if(success) {
-				if(nextToken().word == ")") {
-					success = true; //not needed, but easier to see what's happening
-					increment(); //consume ")"
-				}
-				else if(nextToken().word != ")") {
-					cout << "Line " << currentToken().line << ":\t" << "expected delimiter )" << '\n';
-					success = false;
-				}
-			}
-			else {
-				cout << "Line " << currentToken().line << ":\t" << "expected identifier or value" << '\n';
-			}
-		}
-		else { 
-			success = false;
-			cout << "Line " << currentToken().line << ":\t" << "expected delimiter (" << '\n';
-		}
-		if(nextToken().word == "{" && success) { //first curly braces
-			increment();
-			do {
-				success = line();
-			} while(nextToken().word != "}" && !isLast() && success);
-		}
-		if(nextToken().word == "}" && success) {
-			increment();
-		}
-		else if(success) {
-			success = line();
-		}
-	}
-	return success;
+bool Parser::returnstmt(){
+    if(currentToken_.getTokenName() == Tokens::KEYWORD && currentToken_.getTokenWord() == "return"){
+        nextToken();
+        if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ";"){
+            nextToken();
+            return true;
+        }
+        else{
+            //not a semicolon, so it must be an exprlog, then a semicolon
+            if(exprlog()){
+                if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ";"){
+                    nextToken();
+                    return true;
+                }
+                else{
+                    //missing semicolon
+                    std::stringstream convert;
+                    convert << currentToken_.getTokenLineNumber() - 1;
+                    writeError("Line " + convert.str() + ":\texpected delimiter ;");
+                    return false;
+                }
+            }
+            else{
+                //no exprlog, and not a semicolon
+                std::stringstream convert;
+                convert << currentToken_.getTokenLineNumber();
+                writeError("Line " + convert.str() + ":\texpected value or identifier");
+                return false;
+            }
+        }
+    }
+    //no return keyword
+    return false;
 }
 
-bool assign() {
-	bool success = false;
-	if(nextToken().word == "=") {
-		increment();
-		success = exprlog();
-	}
-	if(nextToken().word == ";" && success) {
-		increment(); //consume ;
-	}
-	else if(success) { //only check for delimiter if there are no errors
-		cout << "Line " << currentToken().line << ":" << "\texpected delimiter ;" << '\n';
-	}
-	else if(!success) {
-		//do nothing, line() will take care of error
-	}
-	else {
-		success = false;
-	}
-	return success;
+bool Parser::call_function(){
+    if(currentToken_.getTokenName() == Tokens::ID || (currentToken_.getTokenName() == Tokens::KEYWORD && (currentToken_.getTokenWord() == "print" || currentToken_.getTokenWord() == "read"))){
+        name = currentToken_.getTokenWord(); //###################################
+        nextToken();
+
+        if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "(")
+        {
+            nextToken();
+            Tokens::type temp = currentToken_.getTokenName(); //#######################
+            
+            switch(temp)
+            {
+                case Tokens::INTEGER : name += "-int";
+                    break;
+                case Tokens::CHAR : name += "-char"; break;
+                case Tokens::FLOAT : name += "-float"; break;
+                case Tokens::STRING : name += "-string"; break;
+                default: break;
+            }
+          
+            if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ","){
+                //a leading comma. function has a problem, abort.
+                std::stringstream convert;
+                convert << currentToken_.getTokenLineNumber();
+                writeError("Line " + convert.str() + ":\texpected value or identifier");
+                return false;
+            }
+
+            while(exprlog()){
+                if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ","){
+                    //if you find a comma, advance and test another exprlog. 
+                    nextToken();
+                    
+                    Tokens::type temp = currentToken_.getTokenName();
+                    
+                    switch(temp)
+                    {
+                        case Tokens::INTEGER : name += "-int";
+                            break;
+                        case Tokens::CHAR : name += "-char"; break;
+                        case Tokens::FLOAT : name += "-float"; break;
+                        default: break;
+                    }
+                    //but... if you find a ), then there's a missing exprlog.
+                    if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ")"){
+                        std::stringstream convert;
+                        convert << currentToken_.getTokenLineNumber();
+                        writeError("Line " + convert.str() + ":\texpected value or identifier");
+                        return false;
+                    }
+                }
+                else{
+                    //if no close paren, keep testing for exprlog
+                    if(!(currentToken_.getTokenWord() == ")")){
+                        //what is next isnt a , or a )... what is it?
+                        std::stringstream convert;
+                        convert << currentToken_.getTokenLineNumber();
+                        writeError("Line " + convert.str() + ":\texpected delimiter ,");
+
+                        return false;
+                    }
+                }
+            }
+
+            if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ")"){
+                bool test = sem->decleration(name, scope); //###########
+                if(!test)
+                {
+                    
+                    std::stringstream convert;
+                    convert << currentToken_.getTokenLineNumber();
+                    writeError("Line " + convert.str() + "Method Not found");
+                }
+                nextToken();
+                if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ";"){
+                    nextToken();
+                    return true;
+                }
+                else{
+                    //couldnt find semicolon
+                    std::stringstream convert;
+                    backToken();
+                    convert << currentToken_.getTokenLineNumber();
+                    writeError("Line " + convert.str() + ":\texpected delimiter ;");
+
+                    return false;
+                }
+
+            }
+            else{
+                //couldnt find close paren
+                std::stringstream convert;
+                convert << currentToken_.getTokenLineNumber();
+                writeError("Line " + convert.str() + ":\texpected delimiter )");
+
+                return false;
+            }
+        }
+        else{
+            //couldnt find open paren
+            return false;
+        }
+    }
+    else{
+        //couldnt find identifier
+        return false;
+    }
 }
 
-bool call_function() { //after having read "identifier", "print", or "read" (sitting at this index)
-	bool success = false;
-	if(nextToken().word == "(") { 
-		increment(); //consume "("
-		success = true;
-	}
-	else {
-		success = false;
-		cout << "Line " << currentToken().line << ":\t" << "expected delimiter (" << '\n';
-	}
-	if(nextToken().word == ")" && success) {
-		success = true;
-		increment(); //consume ")"
-	}
-	else if(!success) {
-		success = false;
-		cout << "Line " << currentToken().line << ":\t" << "expected delimiter )" << '\n';
-	}
-	else {
-		do {
-			if(exprlog() && success) {
-				success = true;
-				//increment(); //consume valid exprlog, sitting on exprlog
-			}
-			else {
-				success = false;
-			}
-			do {
-				if(nextToken().word == "," && success) {
-					increment(); //consume comma
-					if(exprlog()) {
-						success = true;
-						//increment(); //consume valid exprlog
-					}
-					else {
-						success = false;
-					}
-				}
-			} while(nextToken().word != ")" && success);
-		} while(nextToken().word != ")" && success);
-		if(!success) {
-			cout << "Line " << currentToken().line << ":\t" << "expected identifier or value" << '\n';
-		}
-		else if(nextToken().word == ")") {
-			increment();
-		}
-	}
-	return success;
+
+
+bool Parser::call_function_no_semicolon(){
+    if(currentToken_.getTokenName() == Tokens::ID || (currentToken_.getTokenName() == Tokens::KEYWORD && (currentToken_.getTokenWord() == "print" || currentToken_.getTokenWord() == "read"))){
+        nextToken();
+        if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "(")
+        {
+            nextToken();
+
+            while(exprlog()){
+                if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ","){
+                    //if you find a comma, advance and test another exprlog. 
+                    nextToken();
+                }
+                else{
+                    //if no close paren, keep testing for exprlog
+                    if(!(currentToken_.getTokenWord() == ")")){
+                        return false;
+                    }
+                    else{
+                    }
+                }
+            }
+
+            if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ")"){
+                nextToken();
+                return true;
+
+            }
+            else{
+                //couldnt find close paren
+                return false;
+            }
+        }
+        else{
+            //couldnt find open paren
+            return false;
+        }
+    }
+    else{
+        //couldnt find identifier
+        return false;
+    }
 }
 
-bool return_function() {
-	bool success = false;
-	if(nextToken().word == "return") { 
-		increment();
-		success = true;
-	}
-	if(nextToken().word == ";") { 
-		increment(); //consume ";"
-		success = true;
-	}
-	else {
-		success = exprlog();
-		if(nextToken().word == ";") {
-			increment();
-		}
-		else {
-			success = false;
-			cout << "Line " << currentToken().line << ":\t" << "expected delimiter ;" << '\n';
-		}
-	}
-	return success;
+
+bool Parser::exprlog(){
+    if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ")"){
+        //essentially an empty exprlog.
+        return false;
+    }
+
+    if(opand()){
+        while(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "|"){
+            nextToken();
+            if(!opand()){
+                return false;
+            }
+        }
+        return true;
+    }
+    else{
+        return false;
+    }
 }
 
-bool exprlog() { //after reading "=" (if calling assign)
-	bool success = false;
-	if(opand()) {
-		if(nextToken().word == "|") {
-			increment();
-			success = exprlog(); //recursive call
-		}
-		else {
-			success = true;
-		}
-	}
-	return success;
+
+bool Parser::opand(){
+    if(opno()){
+        while(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "&"){
+            nextToken();
+            if(!opno()){
+                return false;
+            }
+        }
+        return true;
+    }
+    else{
+        return false;
+    }
 }
 
-bool opand() {
-	bool success = false;
-	if(opno()) {
-		if(nextToken().word == "&") {
-			increment();
-			success = opand(); //recursive call
-		}
-		else {
-			success = true;
-		}
-	}
-	return success;
+bool Parser::opno(){
+    if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "!"){
+        nextToken();
+    }
+    return exprel();
 }
 
-bool opno() {
-	bool success = false;
-	if(nextToken().word == "!") {
-		increment();
-		success = exprel();
-	}
-	else {
-		success = exprel();
-	}
-	return success;
+
+//convenient split for a complex conditional
+bool Parser::exprelConditional(){
+        if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "!"){
+            nextToken();
+            if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "="){
+                nextToken();
+                return true;
+            }
+            else{
+                backToken();
+                return false;
+            }
+        }
+        else{
+            if(currentToken_.getTokenName() == Tokens::OPERATOR && (currentToken_.getTokenWord() == "=" || currentToken_.getTokenWord() == ">" || currentToken_.getTokenWord() == "<")){
+                nextToken();
+                if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "="){
+                    nextToken();
+                    return true;
+                }
+                else{
+                    backToken();
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+bool Parser::exprel(){
+    if(expr()){
+        while(exprelConditional()){
+            nextToken();      //WHAT ARE YOU DOING
+            if(!expr()){
+
+                return false;
+            }
+
+        }
+        return true;
+    }
+    else{
+        return false;
+    }
 }
 
-bool exprel() {
-	bool success = false;
-	if(expr()) {
-		if(nextToken().word == ">" || nextToken().word == "<") {
-			increment();
-			success = exprel(); //recursive call
-		}
-		else {
-			success = true;
-		}
-	}
-	else {
-		success = false;
-	}
-	return success;
+bool Parser::expr(){
+    if(product()){
+        while((currentToken_.getTokenName() == Tokens::OPERATOR) && (currentToken_.getTokenWord() == "+" || currentToken_.getTokenWord() == "-")){
+            nextToken();
+            if(!product()){
+                return false;
+            }
+        }
+        return true;
+    }
+    else{
+        return false;
+    }
 }
 
-bool expr() {
-	bool success = false;
-	if(product()) {
-		if(nextToken().word == "+" || nextToken().word == "-") {
-			increment();
-			success = expr(); //recursive call
-		}
-		else {
-			success = true;
-		}
-	}
-	else {
-		success = false;
-	}
-	return success;
+bool Parser::product(){
+    if(sign()){
+        while((currentToken_.getTokenName() == Tokens::OPERATOR) && (currentToken_.getTokenWord() == "/" || currentToken_.getTokenWord() == "*" || currentToken_.getTokenWord() == "%")){
+            nextToken();
+            if(!sign()){
+                return false;
+            }
+        }
+        return true;
+    }
+    else{
+        return false;
+    }
 }
 
-bool product() {
-	bool success = false;
-	if(sign()) {
-		if(nextToken().word == "/" || nextToken().word == "*") {
-			increment();
-			success = product(); //recursive call
-		}
-		else {
-			success = true;
-		}
-	}
-	else {
-		success = false;
-	}
-	return success;
+bool Parser::sign(){
+    if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "-"){
+        nextToken();
+    }
+    return term();
 }
 
-bool sign() {
-	bool success = false;
-	if(nextToken().word == "-") {
-		increment();
-		success = term();
-	}
-	else {
-		success = term();
-	}
-	return success;
+bool Parser::term(){
+    
+    //must check for call_function before term, to enforce maximal munch
+    if(currentToken_.getTokenName() == Tokens::ID){
+        //now check for the opening paren
+        
+        bool test = sem->decleration(currentToken_.getTokenWord(), scope); //############################ Might have to remove
+        if(!test)
+        {
+            std::stringstream convert;
+            convert << currentToken_.getTokenLineNumber();
+            writeError("Line " + convert.str() + "Variable Not found");
+            cout << "------" << scope + " "+ currentToken_.getTokenWord();
+        }
+        
+        nextToken();
+        if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "("){
+            //this is clearly supposed to be a call_function. back up the token and call it.
+            backToken();
+            return call_function();
+        }
+        else{
+
+            //no paren, so it's not a call_function
+            backToken();
+            
+            bool test = sem->decleration(currentToken_.getTokenWord(), scope); //############################
+            if(!test)
+            {
+                std::stringstream convert;
+                convert << currentToken_.getTokenLineNumber();
+                writeError("Line " + convert.str() + "Variable Not found");
+                
+            }
+        }
+    }
+    //no else, we don't care to check here
+    if(currentToken_.getTokenName() == Tokens::CHAR || currentToken_.getTokenName() == Tokens::INTEGER || currentToken_.getTokenName() == Tokens::FLOAT || currentToken_.getTokenName() == Tokens::ID || currentToken_.getTokenName() == Tokens::HEXADECIMAL || currentToken_.getTokenName() == Tokens::OCTAL || currentToken_.getTokenName() == Tokens::STRING){
+        nextToken();
+        return true;
+    }
+    if((currentToken_.getTokenName() == Tokens::KEYWORD) && (currentToken_.getTokenWord() == "true" || currentToken_.getTokenWord() == "false")){
+        nextToken();
+        return true;
+    }
+    //now test for exprlog
+    if((currentToken_.getTokenName() == Tokens::DELIMITER) && (currentToken_.getTokenWord() == "(")){
+        nextToken();
+        if(exprlog()){
+            if((currentToken_.getTokenName() == Tokens::DELIMITER) && (currentToken_.getTokenWord() == ")")){
+                nextToken();
+                return true;
+            }
+            else{
+                //no closing paren
+                return false;
+            }
+        }
+    }
+
+    //if no other options
+    return false;
 }
 
-bool term() { //still need to add a couple functions
-	bool success = false;
-	if(nextToken().name == "character" || nextToken().name == "integer" || 
-		nextToken().name == "float" || nextToken().name == "identifier" || 
-		nextToken().name == "string" || nextToken().name == "hexadecimal" ||
-		nextToken().name == "octal") {
-		success = true;
-		if(nextToken().name == "identifier") { //call_function
-			increment(); //consume identifier
-		if(nextToken().word == "(") {
-			success = call_function();
-			index--; //must step back
-		}
-		else {
-			index--;
-		}
-		}
-	}
-	else if(nextToken().word == "true" || nextToken().word == "false") {
-		success = true;
-	}
-	else if(nextToken().word == "(") {
-		increment();
-		success = exprlog();
-		if(nextToken().word == ")" && success) { //added the second condition
-			success = true;
-		}
-		else {
-			success = false;
-		}
-	}
-	if(success) {
-		increment(); //consume valid term
-	}
-	return success;
+void Parser::nextToken(){
+    if(currentLocation_ + 1 < tokenList_.size()){
+        currentLocation_++;
+        currentToken_ = tokenList_[currentLocation_];
+    }
+}
+
+void Parser::backToken(){
+    currentLocation_--;
+    currentToken_ = tokenList_[currentLocation_];
+}
+
+void Parser::advanceToNextLine(){
+    unsigned int currentLine = currentToken_.getTokenLineNumber();
+    bool keepTrying = true;
+    while(keepTrying){
+        if(currentLocation_ + 1 < tokenList_.size()){
+            currentLocation_++;
+            currentToken_ = tokenList_[currentLocation_];
+
+            if(currentToken_.getTokenLineNumber() != currentLine){
+                keepTrying = false;
+            }
+        }
+        else{
+            //no tokens left... just return
+            keepTrying = false;
+        }
+    }
+}
+
+bool Parser::isLastToken(){
+    return currentLocation_ + 1 == tokenList_.size();
+}
+
+void Parser::beginParsing(){
+    program();
+    if(buildSuccessful){
+        std::cout << "Build Successful\n";
+    }
+
+    std::ofstream fileStream;
+    fileStream.open(outputFileName.c_str());
+    if(fileStream.is_open()){
+        fileStream << errorMessagesToWrite;
+        fileStream.close();
+    }
+    else
+        std::cout << "Error writing to " << this->outputFileName << "\n";
+}
+
+int main(int argc, char * argv[]){
+    LexerDriver lDriver = LexerDriver();
+    if(argc < 3)
+        std::cout << "Error: Please specify input and output files.\n";
+    else{
+        std::vector<Token> tokens = lDriver.performLexing(argv[1], argv[2]);
+        Parser parser = Parser(argv[2]);
+        parser.importTokens(tokens);
+        parser.beginParsing();
+        
+        sem->st->print();
+    }
+
+    return 0;
 }
