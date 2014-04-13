@@ -6,7 +6,7 @@
 class semantics
 {
 public:
-    stack<string> stack;
+    stack<string> Stack;
     SymbolTable* st = new SymbolTable();
     Cube* c = new Cube();
     
