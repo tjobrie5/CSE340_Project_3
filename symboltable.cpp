@@ -11,7 +11,7 @@ using namespace std;
 
 //Create Symbol Table class
 class SymbolTable {
-
+public:               //my changes
 	//Create a Hash Table for Symbol Table ST
     unordered_map<string, vector<string>> ST;
 

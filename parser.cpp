@@ -116,7 +116,7 @@ bool Parser::program(){
                     backToken();//experimental
                     std::stringstream convert;
                     convert << currentToken_.getTokenLineNumber();
-                    writeError("Line " + convert.str() + ":\texpected delimiter ;");
+                    //writeError("Line " + convert.str() + ":\texpected delimiter ;");
                     advanceToNextLine();
                 }
             }
@@ -264,7 +264,7 @@ bool Parser::dvar_local(){
             //expected ; where there is none
             std::stringstream convert;
             convert << currentToken_.getTokenLineNumber();
-            writeError("Line " + convert.str() + ":\texpected delimiter ;");
+            //writeError("Line " + convert.str() + ":\texpected delimiter ;");
             
 
             return false;
@@ -281,6 +281,7 @@ bool Parser::dmethod(){
     if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "("){
         nextToken();
         if(identifyType()){
+            
             if(!parameter()){
                 advanceToNextLine();
                 return false;
@@ -683,7 +684,7 @@ bool Parser::assign(){
                     //no semicolon
                     std::stringstream convert;
                     convert << currentToken_.getTokenLineNumber() - 1;
-                    writeError("Line " + convert.str() + ":\texpected delimiter ;");
+                    //writeError("Line " + convert.str() + ":\texpected delimiter ;");
                     return false;
                 }
             }
@@ -741,7 +742,7 @@ bool Parser::returnstmt(){
                     //missing semicolon
                     std::stringstream convert;
                     convert << currentToken_.getTokenLineNumber() - 1;
-                    writeError("Line " + convert.str() + ":\texpected delimiter ;");
+                    //writeError("Line " + convert.str() + ":\texpected delimiter ;");
                     return false;
                 }
             }
@@ -815,7 +816,7 @@ bool Parser::call_function(){
                         //what is next isnt a , or a )... what is it?
                         std::stringstream convert;
                         convert << currentToken_.getTokenLineNumber();
-                        writeError("Line " + convert.str() + ":\texpected delimiter ,");
+                        //writeError("Line " + convert.str() + ":\texpected delimiter ,");
 
                         return false;
                     }
@@ -826,10 +827,19 @@ bool Parser::call_function(){
                 bool test = sem->decleration(name, scope); //###########
                 if(!test)
                 {
-                    
-                    std::stringstream convert;
-                    convert << currentToken_.getTokenLineNumber();
-                    writeError("Method " + name + " not found in line " + convert.str());
+                    if(!sem->checkParams(name))
+                    {
+                        
+                        std::stringstream convert;
+                        convert << currentToken_.getTokenLineNumber();
+                        writeError("Type or numbers of parameters in method " + name + " are incorrect in line "+ convert.str());
+                    }
+                    else
+                    {
+                        std::stringstream convert;
+                        convert << currentToken_.getTokenLineNumber();
+                        writeError("Method " + name + " not found in line " + convert.str());
+                    }
                 }
                 nextToken();
                 if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ";"){
@@ -841,7 +851,7 @@ bool Parser::call_function(){
                     std::stringstream convert;
                     backToken();
                     convert << currentToken_.getTokenLineNumber();
-                    writeError("Line " + convert.str() + ":\texpected delimiter ;");
+                    //writeError("Line " + convert.str() + ":\texpected delimiter ;");
 
                     return false;
                 }

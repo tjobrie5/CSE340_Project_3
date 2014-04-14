@@ -681,4 +681,104 @@ bool boolCheck()
        }//else
         return false;
     }//bool
+    
+    bool checkParams(string name)
+    {
+        string temp="";
+        string params;
+        int i;
+    
+        
+            for (i = 0; i < name.size() && name[i] !='-';++i)
+            {
+                temp += name[i];
+            }
+        
+        for(int j = i+1; j<name.size()&& name[j] != '-'; ++j)
+        {
+            params += name[j];
+        }
+        
+        if(params == "int")
+        {
+            string temp1 = temp + "-float";
+            unordered_map<string, vector<string>>::const_iterator found = st->ST.find(temp1);
+            if(found != st->ST.end())
+                return false;
+            
+            string temp2 = temp + "-string";
+            unordered_map<string, vector<string>>::const_iterator found1 = st->ST.find(temp2);
+            if(found1 != st->ST.end())
+                return false;
+            
+            string temp3 = temp + "-char";
+            unordered_map<string, vector<string>>::const_iterator found2 = st->ST.find(temp3);
+            if(found2 != st->ST.end())
+                return false;
+        }
+        
+        if(params == "float")
+        {
+            string temp1 = temp + "-int";
+            unordered_map<string, vector<string>>::const_iterator found = st->ST.find(temp1);
+            if(found != st->ST.end())
+                return false;
+            
+            string temp2 = temp + "-string";
+            unordered_map<string, vector<string>>::const_iterator found1 = st->ST.find(temp2);
+            if(found1 != st->ST.end())
+                return false;
+            
+            string temp3 = temp + "-char";
+            unordered_map<string, vector<string>>::const_iterator found2 = st->ST.find(temp3);
+            if(found2 != st->ST.end())
+                return false;
+        }
+        
+        else if(params == "string")
+        {
+            string temp1 = temp + "-int";
+            unordered_map<string, vector<string>>::const_iterator found = st->ST.find(temp1);
+            if(found != st->ST.end())
+                return false;
+            
+            string temp2 = temp + "-float";
+            unordered_map<string, vector<string>>::const_iterator found1 = st->ST.find(temp2);
+            if(found1 != st->ST.end())
+                return false;
+            
+            string temp3 = temp + "-char";
+            unordered_map<string, vector<string>>::const_iterator found2 = st->ST.find(temp3);
+            if(found2 != st->ST.end())
+                return false;
+        }
+        else if(params == "char")
+        {
+            string temp1 = temp + "-int";
+            unordered_map<string, vector<string>>::const_iterator found = st->ST.find(temp1);
+            if(found != st->ST.end())
+                return false;
+            
+            string temp2 = temp + "-float";
+            unordered_map<string, vector<string>>::const_iterator found1 = st->ST.find(temp2);
+            if(found1 != st->ST.end())
+                return false;
+            
+            string temp3 = temp + "-string";
+            unordered_map<string, vector<string>>::const_iterator found2 = st->ST.find(temp3);
+            if(found2 != st->ST.end())
+                return false;
+        }
+        else
+            return false;
+        
+        return true;
+        
+        
+        
+        
+        
+        //loop through temp till
+    }
+     
 };
