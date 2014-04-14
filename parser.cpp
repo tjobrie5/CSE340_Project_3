@@ -148,7 +148,7 @@ bool Parser::dvar_global(){
     {
         std::stringstream convert;
         convert << currentToken_.getTokenLineNumber();
-        writeError("Line " + convert.str() + " Duplicate Variable " + currentToken_.getTokenWord());
+        writeError("Duplicated variable " + currentToken_.getTokenWord() +" in line " + convert.str());
         
     }
     else
@@ -165,7 +165,7 @@ bool Parser::dvar_global(){
                 {
                     std::stringstream convert;
                     convert << currentToken_.getTokenLineNumber();
-                    writeError("Line " + convert.str() + " Duplicate Variable " + currentToken_.getTokenWord());
+                    writeError("Duplicated variable " + currentToken_.getTokenWord() +" in line " + convert.str());
                     
                 }
                 else
@@ -219,8 +219,7 @@ bool Parser::dvar_local(){
                 {
                     std::stringstream convert;
                     convert << currentToken_.getTokenLineNumber();
-                    writeError("Line " + convert.str() + " Duplicate Variable " + currentToken_.getTokenWord());
-                    
+                    writeError("Duplicated variable " + currentToken_.getTokenWord() +" in line " + convert.str());
                 }
                 else
                     sem->st->insert(name, type, scope);
@@ -303,7 +302,7 @@ bool Parser::dmethod(){
             {
                 std::stringstream convert;
                 convert << currentToken_.getTokenLineNumber();
-                writeError("Line " + convert.str() + " Duplicate Method " + name);
+               writeError("Duplicated method " + name +" in line " + convert.str());
             }
             else
                 sem->st->insert(name, type, "function");  //###############################
@@ -546,7 +545,7 @@ bool Parser::ifstmt(){
                 {
                     std::stringstream convert;
                     convert << currentToken_.getTokenLineNumber();
-                    writeError("Line " + convert.str() + " Boolean expression expected");
+                    writeError("Boolean expression expected in line " + convert.str());
                 }
                 if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ")"){
                     ifFlag = false;
@@ -603,7 +602,7 @@ bool Parser::whilestmt(){
                 {
                     std::stringstream convert;
                     convert << currentToken_.getTokenLineNumber();
-                    writeError("Line " + convert.str() + " Expected boolean expression");
+                    writeError("Boolean expression expected in line " + convert.str());
                 }
                 if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ")"){
                     whileFlag = false;
@@ -648,8 +647,8 @@ bool Parser::assign(){
         {
             std::stringstream convert;
             convert << currentToken_.getTokenLineNumber();
-            writeError("Line " + convert.str() + "Variable " + currentToken_.getTokenWord() + " Not found");
-        }
+            writeError("Variable " + currentToken_.getTokenWord() + " not found in line " + convert.str());
+                       }
         else
         {
                 name = currentToken_.getTokenWord();
@@ -727,7 +726,7 @@ bool Parser::returnstmt(){
                 {
                     std::stringstream convert;
                     convert << currentToken_.getTokenLineNumber();
-                    writeError("Line " + convert.str() + " return type Mismatch");
+                    writeError("Return type mismatch in line " + convert.str());
                     return false;
 
                 }
@@ -830,7 +829,7 @@ bool Parser::call_function(){
                     
                     std::stringstream convert;
                     convert << currentToken_.getTokenLineNumber();
-                    writeError("Line " + convert.str() + "Method " + name + " Not found");
+                    writeError("Method " + name + " not found in line " + convert.str());
                 }
                 nextToken();
                 if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ";"){
@@ -1070,7 +1069,7 @@ bool Parser::term(){
         {
             std::stringstream convert;
             convert << currentToken_.getTokenLineNumber();
-            writeError("Line " + convert.str() + "Variable" + currentToken_.getTokenWord() + "Not found");
+            writeError("Variable " +  currentToken_.getTokenWord() + " not found in line " + convert.str());
            // cout << "------" << scope + " "+ currentToken_.getTokenWord();
         }
         
@@ -1090,7 +1089,7 @@ bool Parser::term(){
             {
                 std::stringstream convert;
                 convert << currentToken_.getTokenLineNumber();
-                writeError("Line " + convert.str() + "Variable" + currentToken_.getTokenWord() + "Not found");
+                writeError("Variable " +  currentToken_.getTokenWord() + " not found in line " + convert.str());
                 
             }
             
@@ -1116,7 +1115,7 @@ bool Parser::term(){
                 {
                     std::stringstream convert;
                     convert << currentToken_.getTokenLineNumber();
-                    writeError("Line " + convert.str() + "Variable" + currentToken_.getTokenWord() + "Not found");
+                    writeError("Variable " +  currentToken_.getTokenWord() + " not found in line " + convert.str());
                     
                 }
                 else
@@ -1219,7 +1218,6 @@ int main(int argc, char * argv[]){
         parser.importTokens(tokens);
         parser.beginParsing();
         
-        sem->st->print();
     }
 
     return 0;
