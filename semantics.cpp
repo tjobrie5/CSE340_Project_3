@@ -2,11 +2,13 @@
 #include <stack>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 class semantics
 {
 public:
     stack<string> Stack;
+    
     SymbolTable* st = new SymbolTable();
     Cube* c = new Cube();
     
@@ -33,7 +35,11 @@ public:
     
     bool typeCheck(string left)
     {
-        //cout << "##"  << left << endl;
+        
+        //string leftType;
+        
+        transform(left.begin(), left.end(), left.begin(), ::toupper);
+        //cout << "LEFTTYPE " << leftType << endl
         int firstType, secondType;
         int result = 0;
         if(Stack.size() > 1)
@@ -53,7 +59,11 @@ public:
         else if(first == "BOOLEAN")
             firstType = 5;
         else
+        {
+            while(!Stack.empty())
+                Stack.pop();
             return false;
+        }
         while(!Stack.empty())
         {
         if(Stack.top() == "+")
@@ -71,7 +81,11 @@ public:
             else if(second == "BOOLEAN")
                 secondType = 5;
             else
+            {
+                while(!Stack.empty())
+                    Stack.pop();
                 return false;
+            }
 
             result = c->cube[OP_PLUS][firstType][secondType];
             firstType = result;
@@ -92,7 +106,11 @@ public:
             else if(second == "BOOLEAN")
                 secondType = 5;
             else
+            {
+                while(!Stack.empty())
+                    Stack.pop();
                 return false;
+            }
             
             result = c->cube[OP_MINUS][firstType][secondType];
             
@@ -114,7 +132,12 @@ public:
             else if(second == "BOOLEAN")
                 secondType = 5;
             else
+            {
+                while(!Stack.empty())
+                    Stack.pop();
                 return false;
+            }
+
             
             result = c->cube[OP_MULT][firstType][secondType];
             
@@ -136,7 +159,12 @@ public:
             else if(second == "BOOLEAN")
                 secondType = 5;
             else
+            {
+                while(!Stack.empty())
+                    Stack.pop();
                 return false;
+            }
+
         
             result = c->cube[OP_DIV][firstType][secondType];
             
@@ -158,7 +186,12 @@ public:
             else if(second == "BOOLEAN")
                 secondType = 5;
             else
+            {
+                while(!Stack.empty())
+                    Stack.pop();
                 return false;
+            }
+
             
             result = c->cube[OP_MULT][firstType][secondType];
             
@@ -180,7 +213,11 @@ public:
             else if(second == "BOOLEAN")
                 secondType = 5;
             else
+            {
+                while(!Stack.empty())
+                    Stack.pop();
                 return false;
+            }
             
             result = c->cube[OP_GREATER][firstType][secondType];
             
@@ -202,7 +239,12 @@ public:
             else if(second == "BOOLEAN")
                 secondType = 5;
             else
+            {
+                while(!Stack.empty())
+                    Stack.pop();
                 return false;
+            }
+
             
             result = c->cube[OP_LESS][firstType][secondType];
             
@@ -224,7 +266,12 @@ public:
             else if(second == "BOOLEAN")
                 secondType = 5;
             else
+            {
+                while(!Stack.empty())
+                    Stack.pop();
                 return false;
+            }
+
             
             result = c->cube[OP_AND][firstType][secondType];
             
@@ -247,7 +294,12 @@ public:
             else if(second == "BOOLEAN")
                 secondType = 5;
             else
+            {
+                while(!Stack.empty())
+                    Stack.pop();
                 return false;
+            }
+
             
             result = c->cube[OP_OR][firstType][secondType];
             
@@ -269,12 +321,22 @@ public:
         else if(result == 5)
             final = 5;
         else
+        {
+            while(!Stack.empty())
+                Stack.pop();
             return false;
+        }
+
         
         if(final == left)
             return true;
-        
-        return false;
+        else
+        {
+            while(!Stack.empty())
+                Stack.pop();
+            return false;
+        }
+
         }
         else
         {
@@ -292,6 +354,331 @@ public:
         }
     }
     
-    
+bool boolCheck()
+    {
+        
+        int firstType;
+        int secondType;
+        int result=0;
+        if(Stack.size() == 1)
+        {
+            if(Stack.top() == "BOOLEAN")
+            {
+                Stack.pop();
+                return true;
+            }
+            else
+            {
+                Stack.pop();
+                return false;
+            }
+        }
+        else if(Stack.size()== 2)
+        {
+            if(Stack.top() == "BOOLEAN")
+            {
+                Stack.pop();
+                if(Stack.top() == "!")
+                {
+                    Stack.pop();
+                    return true;
+                }
+                else
+                {
+                    Stack.pop();
+                    return false;
+                }
+            }
+            else
+            {
+                Stack.pop();
+                Stack.pop();
+                return false;
+            }
+        }
+        
+       else
+       {
+           string first = Stack.top();
+           string final;
+           Stack.pop();
+           
+           if(first =="INTEGER")
+               firstType = 1;
+           else if( first == "FLOAT" )
+               firstType = 2;
+           else if(first =="CHAR")
+               firstType = 3;
+           else if(first =="STRING")
+               firstType = 4;
+           else if(first == "BOOLEAN")
+               firstType = 5;
+           else
+           {
+               while(!Stack.empty())
+                   Stack.pop();
+               return false;
+           }
+           while(!Stack.empty())
+           {
+               if(Stack.top() == "+")
+               {
+                   Stack.pop();
+                   string second = Stack.top();
+                   if(second =="INTEGER")
+                       secondType = 1;
+                   else if( second == "FLOAT" )
+                       secondType = 2;
+                   else if(second =="CHAR")
+                       secondType = 3;
+                   else if(second =="STRING")
+                       secondType= 4;
+                   else if(second == "BOOLEAN")
+                       secondType = 5;
+                   else
+                   {
+                       while(!Stack.empty())
+                           Stack.pop();
+                       return false;
+                   }
+                   
+                   result = c->cube[OP_PLUS][firstType][secondType];
+                   firstType = result;
+               }
+               
+               else if(Stack.top() == "-")
+               {
+                   Stack.pop();
+                   string second = Stack.top();
+                   if(second =="INTEGER")
+                       secondType = 1;
+                   else if( second == "FLOAT" )
+                       secondType = 2;
+                   else if(second =="CHAR")
+                       secondType = 3;
+                   else if(second =="STRING")
+                       secondType= 4;
+                   else if(second == "BOOLEAN")
+                       secondType = 5;
+                   else
+                   {
+                       while(!Stack.empty())
+                           Stack.pop();
+                       return false;
+                   }
+                   
+                   result = c->cube[OP_MINUS][firstType][secondType];
+                   
+                   firstType = result;
+               }
+               
+               else if(Stack.top() == "*")
+               {
+                   Stack.pop();
+                   string second = Stack.top();
+                   if(second =="INTEGER")
+                       secondType = 1;
+                   else if( second == "FLOAT" )
+                       secondType = 2;
+                   else if(second =="CHAR")
+                       secondType = 3;
+                   else if(second =="STRING")
+                       secondType= 4;
+                   else if(second == "BOOLEAN")
+                       secondType = 5;
+                   else
+                   {
+                       while(!Stack.empty())
+                           Stack.pop();
+                       return false;
+                   }
+                   
+                   
+                   result = c->cube[OP_MULT][firstType][secondType];
+                   
+                   firstType = result;
+               }
+               
+               else if(Stack.top() == "/")
+               {
+                   Stack.pop();
+                   string second = Stack.top();
+                   if(second =="INTEGER")
+                       secondType = 1;
+                   else if( second == "FLOAT" )
+                       secondType = 2;
+                   else if(second =="CHAR")
+                       secondType = 3;
+                   else if(second =="STRING")
+                       secondType= 4;
+                   else if(second == "BOOLEAN")
+                       secondType = 5;
+                   else
+                   {
+                       while(!Stack.empty())
+                           Stack.pop();
+                       return false;
+                   }
+                   
+                   
+                   result = c->cube[OP_DIV][firstType][secondType];
+                   
+                   firstType = result;
+               }
+               
+               else if(Stack.top() == "/")
+               {
+                   Stack.pop();
+                   string second = Stack.top();
+                   if(second =="INTEGER")
+                       secondType = 1;
+                   else if( second == "FLOAT" )
+                       secondType = 2;
+                   else if(second =="CHAR")
+                       secondType = 3;
+                   else if(second =="STRING")
+                       secondType= 4;
+                   else if(second == "BOOLEAN")
+                       secondType = 5;
+                   else
+                   {
+                       while(!Stack.empty())
+                           Stack.pop();
+                       return false;
+                   }
+                   
+                   
+                   result = c->cube[OP_MULT][firstType][secondType];
+                   
+                   firstType = result;
+               }
+               
+               else if(Stack.top() == ">")
+               {
+                   Stack.pop();
+                   string second = Stack.top();
+                   if(second =="INTEGER")
+                       secondType = 1;
+                   else if( second == "FLOAT" )
+                       secondType = 2;
+                   else if(second =="CHAR")
+                       secondType = 3;
+                   else if(second =="STRING")
+                       secondType= 4;
+                   else if(second == "BOOLEAN")
+                       secondType = 5;
+                   else
+                   {
+                       while(!Stack.empty())
+                           Stack.pop();
+                       return false;
+                   }
+                   
+                   result = c->cube[OP_GREATER][firstType][secondType];
+                   
+                   firstType = result;
+               }
+               
+               else if(Stack.top() == "<")
+               {
+                   Stack.pop();
+                   string second = Stack.top();
+                   if(second =="INTEGER")
+                       secondType = 1;
+                   else if( second == "FLOAT" )
+                       secondType = 2;
+                   else if(second =="CHAR")
+                       secondType = 3;
+                   else if(second =="STRING")
+                       secondType= 4;
+                   else if(second == "BOOLEAN")
+                       secondType = 5;
+                   else
+                   {
+                       while(!Stack.empty())
+                           Stack.pop();
+                       return false;
+                   }
+                   
+                   
+                   result = c->cube[OP_LESS][firstType][secondType];
+                   
+                   firstType = result;
+               }
+               
+               else if(Stack.top() == "&")
+               {
+                   Stack.pop();
+                   string second = Stack.top();
+                   if(second =="INTEGER")
+                       secondType = 1;
+                   else if( second == "FLOAT" )
+                       secondType = 2;
+                   else if(second =="CHAR")
+                       secondType = 3;
+                   else if(second =="STRING")
+                       secondType= 4;
+                   else if(second == "BOOLEAN")
+                       secondType = 5;
+                   else
+                   {
+                       while(!Stack.empty())
+                           Stack.pop();
+                       return false;
+                   }
+                   
+                   
+                   result = c->cube[OP_AND][firstType][secondType];
+                   
+                   firstType = result;
+               }
+               
+               
+               else if(Stack.top() == "|")
+               {
+                   Stack.pop();
+                   string second = Stack.top();
+                   if(second =="INTEGER")
+                       secondType = 1;
+                   else if( second == "FLOAT" )
+                       secondType = 2;
+                   else if(second =="CHAR")
+                       secondType = 3;
+                   else if(second =="STRING")
+                       secondType= 4;
+                   else if(second == "BOOLEAN")
+                       secondType = 5;
+                   else
+                   {
+                       while(!Stack.empty())
+                           Stack.pop();
+                       return false;
+                   }
+                   
+                   
+                   result = c->cube[OP_OR][firstType][secondType];
+                   
+                   firstType = result;
+               }
+               
+               
+               Stack.pop();
+               
+           }
+           
+           if (result == 5)
+           {
+               return true;
+           }
+           else
+           {
+               while(!Stack.empty())
+                   Stack.pop();
+               return false;
+           }
 
+   
+       }//else
+        return false;
+    }//bool
 };

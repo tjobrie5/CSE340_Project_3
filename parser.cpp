@@ -4,6 +4,7 @@
 #include"parser.hpp"
 #include <string>
 #include "semantics.cpp"
+#include <algorithm>
 using namespace std;
 string name ="";
 string type = "";
@@ -11,6 +12,10 @@ string value= "";
 string scope= "global";
 bool methodReDec = false;
 string leftType = "";
+bool assignFlag = false;
+bool returnFlag = false;
+bool ifFlag = false;
+bool whileFlag = false;
 semantics* sem = new semantics();
 
 vector<string> tempVector;
@@ -253,8 +258,7 @@ bool Parser::dvar_local(){
 
         if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ";"){
             nextToken();
-            while(!sem->Stack.empty())
-                  sem->Stack.pop();
+
             return true;
         }
         else{
@@ -262,13 +266,14 @@ bool Parser::dvar_local(){
             std::stringstream convert;
             convert << currentToken_.getTokenLineNumber();
             writeError("Line " + convert.str() + ":\texpected delimiter ;");
+            
+
             return false;
         }
     }
     else{
         //expected type where there is none
-        while(!sem->Stack.empty())
-            sem->Stack.pop();
+
         return false;
     }
 }
@@ -535,8 +540,16 @@ bool Parser::ifstmt(){
         nextToken();
         if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "("){
             nextToken();
+            ifFlag = true;
             if(exprlog()){
+                if(!sem->boolCheck())
+                {
+                    std::stringstream convert;
+                    convert << currentToken_.getTokenLineNumber();
+                    writeError("Line " + convert.str() + " Boolean expression expected");
+                }
                 if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ")"){
+                    ifFlag = false;
                     nextToken();
                     braceBlock();
                     if(currentToken_.getTokenWord() == "{"){
@@ -584,8 +597,16 @@ bool Parser::whilestmt(){
         nextToken();
         if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == "("){
             nextToken();
+            whileFlag = true;
             if(exprlog()){
+                if(!sem->boolCheck())
+                {
+                    std::stringstream convert;
+                    convert << currentToken_.getTokenLineNumber();
+                    writeError("Line " + convert.str() + " Expected boolean expression");
+                }
                 if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ")"){
+                    whileFlag = false;
                     nextToken();
                     braceBlock();
                     return true;
@@ -639,9 +660,13 @@ bool Parser::assign(){
         nextToken();
         if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "="){
             nextToken();
+            assignFlag = true;  //################### SETTING ASSIGN FLAG HERE
             if(exprlog()){
                 if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ";"){
+                    assignFlag = false; //RESETING ASSIgn FLag
                     bool typetest = sem->typeCheck(leftType); //###############################
+                    std::stringstream convert;
+                    convert << currentToken_.getTokenLineNumber();
                     if(!typetest)
                     {
                         std::stringstream convert;
@@ -650,8 +675,8 @@ bool Parser::assign(){
                    }
                     
                     nextToken();
-                    while(!sem->Stack.empty())
-                        sem->Stack.pop();
+                    //###########################################################
+
 
                     return true;
                 }
@@ -672,8 +697,6 @@ bool Parser::assign(){
             }
         }
         else{
-            while(!sem->Stack.empty())
-                sem->Stack.pop();
 
             return false;
         }
@@ -696,7 +719,9 @@ bool Parser::returnstmt(){
         }
         else{
             //not a semicolon, so it must be an exprlog, then a semicolon
+            returnFlag = true;
             if(exprlog()){
+                
                 string returnType = sem->st->getType(scope, "function");
                 if(!sem->typeCheck(returnType))
                 {
@@ -706,8 +731,10 @@ bool Parser::returnstmt(){
                     return false;
 
                 }
+                 
                 
                 if(currentToken_.getTokenName() == Tokens::DELIMITER && currentToken_.getTokenWord() == ";"){
+                    returnFlag = false;
                     nextToken();
                     return true;
                 }
@@ -911,7 +938,9 @@ bool Parser::exprlog(){
 bool Parser::opand(){
     if(opno()){
         while(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "&"){
-            sem->Stack.push(currentToken_.getTokenWord()); //######
+            if(assignFlag || returnFlag || ifFlag || whileFlag)
+                sem->Stack.push(currentToken_.getTokenWord()); //######
+            
             nextToken();
             if(!opno()){
                 return false;
@@ -926,7 +955,9 @@ bool Parser::opand(){
 
 bool Parser::opno(){
     if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "!"){
-        sem->Stack.push(currentToken_.getTokenWord()); //#####
+        if(assignFlag || returnFlag || ifFlag || whileFlag)
+            sem->Stack.push(currentToken_.getTokenWord()); //#####
+        
         nextToken();
     }
     return exprel();
@@ -948,7 +979,9 @@ bool Parser::exprelConditional(){
         }
         else{
             if(currentToken_.getTokenName() == Tokens::OPERATOR && (currentToken_.getTokenWord() == "=" || currentToken_.getTokenWord() == ">" || currentToken_.getTokenWord() == "<")){
-                sem->Stack.push(currentToken_.getTokenWord()); //#######
+                if(assignFlag || returnFlag || ifFlag || whileFlag)
+                    sem->Stack.push(currentToken_.getTokenWord()); //#######
+                
                 nextToken();
                 if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "="){
                     nextToken();
@@ -983,7 +1016,9 @@ bool Parser::exprel(){
 bool Parser::expr(){
     if(product()){
         while((currentToken_.getTokenName() == Tokens::OPERATOR) && (currentToken_.getTokenWord() == "+" || currentToken_.getTokenWord() == "-")){
-            sem->Stack.push(currentToken_.getTokenWord()); //#####
+            if(assignFlag || returnFlag || ifFlag || whileFlag)
+                sem->Stack.push(currentToken_.getTokenWord()); //#####
+            
             nextToken();
             if(!product()){
                 return false;
@@ -999,8 +1034,9 @@ bool Parser::expr(){
 bool Parser::product(){
     if(sign()){
         while((currentToken_.getTokenName() == Tokens::OPERATOR) && (currentToken_.getTokenWord() == "/" || currentToken_.getTokenWord() == "*" || currentToken_.getTokenWord() == "%")){
-            Tokens::type  convert = currentToken_.getTokenName();
-            sem->Stack.push(currentToken_.getTokenWord()); //#####
+            if(assignFlag || returnFlag || ifFlag || whileFlag)
+                sem->Stack.push(currentToken_.getTokenWord()); //#####
+            
             nextToken();
             if(!sign()){
                 return false;
@@ -1015,7 +1051,9 @@ bool Parser::product(){
 
 bool Parser::sign(){
     if(currentToken_.getTokenName() == Tokens::OPERATOR && currentToken_.getTokenWord() == "-"){
-        sem->Stack.push(currentToken_.getTokenWord()); //#######
+        if(assignFlag || returnFlag || ifFlag || whileFlag)
+            sem->Stack.push(currentToken_.getTokenWord()); //#######
+        
         nextToken();
     }
     return term();
@@ -1063,6 +1101,9 @@ bool Parser::term(){
         Tokens::type temp = currentToken_.getTokenName();
         
         bool test;
+        
+        if(assignFlag || returnFlag || ifFlag || whileFlag)
+        {
         switch(temp)
         {
             case Tokens::INTEGER : sem->Stack.push("INTEGER");
@@ -1079,16 +1120,22 @@ bool Parser::term(){
                     
                 }
                 else
-                    sem->Stack.push(sem->st->getType(currentToken_.getTokenWord(), scope));
+                {
+                    string upper = sem->st->getType(currentToken_.getTokenWord(), scope);
+                    transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+                    sem->Stack.push(upper);
+                }
                 break;
             default: break;
+        }
         }
         nextToken();
         return true;
     }
     if((currentToken_.getTokenName() == Tokens::KEYWORD) && (currentToken_.getTokenWord() == "true" || currentToken_.getTokenWord() == "false")){
+        if(assignFlag || returnFlag || ifFlag || whileFlag)
+            sem->Stack.push("BOOLEAN");
         
-        sem->Stack.push("BOOLEAN");
         nextToken();
         return true;
     }
